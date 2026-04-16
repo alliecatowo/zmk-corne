@@ -58,28 +58,28 @@ Unclear why the driver write doesn't land (possibly `setup_device` fails on a pr
 
 ---
 
-## CRITICAL — power-cycle after flashing the right half
+## CRITICAL — power-cycle BOTH halves after flashing
 
-**Every firmware flash, the right half MUST be physically unplugged from USB
-and replugged before testing the touchpad.** Learned the hard way over
-multiple misdiagnosed "regressions":
+**Every firmware flash, BOTH halves must be physically unplugged from USB
+and replugged before testing.** Learned the hard way over multiple
+misdiagnosed "regressions":
 
 - Symptom if skipped: touchpad appears rotated (90°-ish), laggy, or dead.
   Feels like the new firmware broke something. It didn't — the IQS572
-  chip's internal state machine is wedged.
-- Root cause: DFU flash reboots the MCU but the IQS572 stays powered from
-  the same 3V3 rail. If it was mid-I2C-transaction when the MCU rebooted
-  (highly likely given how often the driver polls), its state latches in a
-  broken state. The new firmware talks to it, gets garbage, reports back
-  to ZMK.
-- Fix: unplug USB from the right half → wait ~2s → replug. That power-
-  cycles the IQS572 properly; POR runs cleanly; driver init succeeds.
+  chip's state machine is wedged AND/OR the split BT pairing state is
+  stale between halves.
+- Root cause (right half): DFU flash reboots the MCU but the IQS572 stays
+  powered from the same 3V3 rail. If it was mid-I2C-transaction when the
+  MCU rebooted (highly likely given how often the driver polls), its state
+  latches in a broken state. New firmware talks to it, gets garbage.
+- Root cause (left half): BT central/peripheral pairing state can end up
+  half-torn between halves; a clean power-cycle of both ensures the split
+  handshake starts from a known state.
+- Fix: unplug BOTH halves' USB → wait ~2s → replug. POR runs cleanly on
+  the IQS572; BT pairing re-establishes fresh; driver init succeeds.
 
 Applies to DFU-serial flashes AND UF2 drag-drop flashes — both reboot the
-MCU only, not the touchpad chip.
-
-Does NOT apply to the left half — no touchpad, no wedged chip state,
-just flash and go.
+MCU only, not the touchpad chip or the paired state.
 
 ## Open / cosmetic: `Failed to read system info 0: -5`
 

@@ -116,9 +116,7 @@ PY
     --singlebank
 
 echo "Done. Board should reboot into new firmware."
-if [[ "$side" == "right" || "$side" == "right-prod" ]]; then
-    echo ""
-    echo "⚠️  IMPORTANT: unplug the right half's USB and replug after ~2s."
-    echo "   The touchpad chip (IQS572) needs a full power cycle or its"
-    echo "   I2C state machine stays wedged and the cursor behaves badly."
-fi
+echo ""
+echo "⚠️  IMPORTANT: once both halves are flashed, unplug BOTH halves' USB,"
+echo "   wait ~2s, replug. DFU doesn't power-cycle the IQS572 chip or reset"
+echo "   the BT pairing state — skip this and the touchpad will act weird."

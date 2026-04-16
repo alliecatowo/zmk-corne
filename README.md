@@ -27,12 +27,12 @@ Defined in `build.yaml`:
 | `corne_right_debug` | Right half + `zmk-usb-logging` snippet. Flash this for touchpad/I2C debugging. |
 | `settings_reset` | Wipes BT pairings + NVS. Only flash if halves can't re-pair. |
 
-## ⚠️ After flashing the right half: power-cycle it
+## ⚠️ After every flash: power-cycle BOTH halves
 
-Every flash: **unplug the right half's USB → wait 2s → replug.** DFU reboots
-the MCU but NOT the touchpad chip, whose state machine wedges if it was
-mid-I2C-transaction at reboot. Symptoms of skipping this: touchpad appears
-rotated/laggy/dead. See [`TOUCHPAD_HANDOFF.md`](TOUCHPAD_HANDOFF.md#critical--power-cycle-after-flashing-the-right-half).
+**Unplug both halves' USB → wait 2s → replug.** DFU reboots the MCU but not
+the touchpad chip (whose state machine wedges) and not the BT pairing state
+(which can end up half-torn). Symptoms of skipping: touchpad appears
+rotated/laggy/dead. See [`TOUCHPAD_HANDOFF.md`](TOUCHPAD_HANDOFF.md#critical--power-cycle-both-halves-after-flashing).
 
 ## Flashing
 
