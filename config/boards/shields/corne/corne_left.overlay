@@ -1,0 +1,26 @@
+/*
+ * Left half (central) — split input proxy + listener for TPS43 touchpad.
+ *
+ * No touchpad hardware lives on this side. The `tps43_split` node here is a
+ * virtual proxy (matching `reg = <0>` on the right half's forwarder); when
+ * the peripheral sends an input event over BLE, the central routes it to
+ * this proxy, and the listener below converts it to HID mouse reports over
+ * USB / BLE.
+ */
+
+/ {
+    split_inputs {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        tps43_split: tps43_split@0 {
+            compatible = "zmk,input-split";
+            reg = <0>;
+        };
+    };
+
+    tps43_listener: tps43_listener {
+        compatible = "zmk,input-listener";
+        device = <&tps43_split>;
+    };
+};

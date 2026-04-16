@@ -27,42 +27,15 @@
 };
 
 /*
- * TPS43 Azoteq touchpad on right half via I2C at address 0x74.
+ * TPS43 touchpad hardware (I2C device, RDY GPIO) is declared in
+ * `config/boards/shields/corne/corne_right.overlay` (peripheral-only).
  *
- * Pins definitively extracted from factory RIGHT.UF2 (tools/extract_pins.py + byte
- * analysis of the compiled iqs5xx_config struct at flash offset 0x60ae8):
- *   RDY   = P1.02, GPIO_ACTIVE_HIGH
- *   NRST  = P1.01, GPIO_ACTIVE_LOW
- *   SCL   = P0.17, SDA = P0.20 (default pro_micro_i2c, matches factory)
- *   freq  = 100kHz
- *
- * reset-gpios is intentionally OMITTED. AYM1607's driver pulses reset then only
- * waits 10ms — shorter than the IQS572's ~150ms ATI time — causing every setup
- * write to NACK into a closed communication window. Skipping the reset lets the
- * chip stay in its natural powered-up state (board boot already gave it hundreds
- * of ms), so RDY is asserted by the time the driver's 100ms blind sleep finishes.
+ * Split input forwarding is declared per-side in `corne_right.overlay`
+ * (zmk,input-split source) and `corne_left.overlay` (proxy + listener).
+ * The shared keymap must NOT reference `&tps43` — it doesn't exist on left.
  */
-&pro_micro_i2c {
-    status = "okay";
-
-    tps43: iqs5xx@74 {
-        compatible = "azoteq,iqs5xx";
-        reg = <0x74>;
-        rdy-gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;
-        one-finger-tap;
-        two-finger-tap;
-        press-and-hold;
-        scroll;
-        natural-scroll-y;
-    };
-};
 
 / {
-    tps43_listener {
-        compatible = "zmk,input-listener";
-        device = <&tps43>;
-    };
-
     keymap {
         compatible = "zmk,keymap";
 
