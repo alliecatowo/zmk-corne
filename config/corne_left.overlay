@@ -1,16 +1,11 @@
 /*
  * Left half (central) — split input proxy + listener for TPS43 touchpad.
  *
- * No touchpad hardware lives on this side. The `tps43_split` node here is a
- * virtual proxy (matching `reg = <0>` on the right half's forwarder); when
- * the peripheral sends an input event over BLE, the central routes it to
- * this proxy, and the listener below converts it to HID mouse reports over
- * USB / BLE.
- *
- * Axis correction lives here on the central (post-driver). Layer-scoped
- * input processors (scroll mode, precision mode) are declared as persistent
- * toggles addressable via dedicated keys on the adjust layer — no
- * hold-a-layer-to-activate pattern. See corne.keymap for the bindings.
+ * Minimal known-good config: X-axis invert only, no layer overrides.
+ * The &tog scroll/precision modes were causing weird axis behavior (90deg
+ * rotation look) in testing — leaving the listener lean until we root-cause
+ * whether it's ZMK issue #2967 layer-bleed or our config. Re-introduce
+ * layer overrides one at a time after confirming base X-invert is stable.
  */
 
 #include <input/processors.dtsi>
@@ -30,21 +25,6 @@
     tps43_listener: tps43_listener {
         compatible = "zmk,input-listener";
         device = <&tps43_split>;
-
-        /* Base: invert X (physical pad mirrored vs chip default). */
         input-processors = <&zip_xy_transform INPUT_TRANSFORM_X_INVERT>;
-
-        /* Scroll mode — toggle on/off via &tog on adjust layer. */
-        scroller {
-            layers = <5>;
-            input-processors = <&zip_xy_to_scroll_mapper>;
-        };
-
-        /* Precision mode — toggle on/off via &tog on adjust layer.
-         * Stacks on base: movement scaled to 1/2 while layer active. */
-        precision {
-            layers = <6>;
-            input-processors = <&zip_xy_scaler 1 2>;
-        };
     };
 };
