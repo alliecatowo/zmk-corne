@@ -25,6 +25,7 @@
         press-and-hold;
         scroll;
         natural-scroll-y;
+        flip-x;   /* physical pad is mirrored left/right relative to chip default */
     };
 };
 
