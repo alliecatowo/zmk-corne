@@ -1,4 +1,7 @@
-/* Enable I2C logging for debugging touchpad */
+#include <zephyr/dt-bindings/i2c/i2c.h>
+
+/* Enable I2C for touchpad. 100kHz matches factory firmware. */
 &i2c0 {
     status = "okay";
+    clock-frequency = <I2C_BITRATE_STANDARD>;
 };

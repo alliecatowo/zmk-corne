@@ -1,113 +1,163 @@
 # Touchpad Debugging Handoff
 
-Status as of commit `d78143e` (2026-04-16). Pick this up in a fresh session and keep going.
+Status pinned to the Phase A attempt (this commit). Touchpad NACKed on every
+prior attempt; this iteration addresses a **stacked cause** that earlier debug
+sessions missed.
 
 ## TL;DR
 
-Right half has an Azoteq TPS43 (IQS572) touchpad on I2C `0x74`. Driver loads, but I2C transactions NACK. We're guessing RDY/NRST pins because nothing documents this PCB. Current build has **swapped** RDY/NRST vs. the initial guess + verbose I2C logging — not yet flashed and tested.
+Right half has an Azoteq TPS43 (IQS572) touchpad on I2C `0x74`. Driver loads, but
+I2C transactions NACKed across every previous config — including the
+originally-correct pin assignment. This iteration lands a compound fix that
+addresses both root causes at once.
 
-**Next step:** flash `corne_right_debug` UF2 to right half, capture USB serial logs, decide if the swap worked.
+**Next step:** flash `corne_right_debug` UF2, capture USB serial logs, follow the
+decision-gate tree below.
 
-## Hardware Recap
+## Definitive Factory Pin Extraction
 
-See `HARDWARE.md` for full details. Key facts:
+Byte-level analysis of the committed factory firmware (`firmware/original-backup/RIGHT.UF2`)
+located the compiled `iqs5xx_config` struct at flash offset `0x60ae8`:
 
-- **AliExpress Corne**, Nice!Nano v2, non-standard pin mapping (already working for keys).
-- **Touchpad**: Azoteq TPS43 / IQS572 chipset, I2C addr `0x74`, 5-pin header "P2" on PCB.
-- **Known-good pins** (extracted from backup firmware UF2):
-  - Present in right-half backup but not left: `P1.02` — assumed to be a touchpad control pin (RDY or NRST).
-  - `P1.01` is the other prime suspect but wasn't directly observed in the extraction; we're probing it as the other half of the pair.
-- **Backup firmwares** committed at `firmware/original-backup/{LEFT,RIGHT}.UF2` — these are the seller-flashed (mislabeled "Sofle_RGB") factory firmware. Use them to re-extract or to flash as a rollback.
+| Role | Pin | Polarity | Evidence |
+|---|---|---|---|
+| RDY | **P1.02** | `GPIO_ACTIVE_HIGH` | gpio_dt_spec at `0x60b40`, `{port=P1, pin=2}` |
+| NRST | **P1.01** | `GPIO_ACTIVE_LOW` | gpio_dt_spec at `0x60b48`, `{port=P1, pin=1}` |
+| SCL | **P0.17** | — | `NRF_PSEL(TWIM_SCL)=0x000c0011` at `0x60b18` |
+| SDA | **P0.20** | — | `NRF_PSEL(TWIM_SDA)=0x000b0014` at `0x60b1c` |
+| I2C freq | 100 kHz | — | `nrf_twim_frequency=0x01980000` at `0x60af8` |
+| I2C addr | 0x74 | — | node name `iqs5xx@74` |
 
-## Driver
+P1.01 and P1.02 appear only in RIGHT.UF2, not LEFT.UF2 — confirming they are
+right-half touchpad pins.
 
-- Module: `github.com/AYM1607/zmk-driver-azoteq-iqs5xx` (pulled via `config/west.yml`).
-- Compatible string: `azoteq,iqs5xx`.
-- Driver **requires** `rdy-gpios` at compile time (discovered the hard way — see commit `fd077a4`). Polling-only mode is not an option without a driver change.
-- `reset-gpios` is optional.
+## Stacked Root Cause
 
-## What's Been Tried (chronological)
+Previous debug focused only on cause #1. Both had to be fixed together.
 
-| Commit | Change | Result |
-|--------|--------|--------|
-| `61bd27b` | Initial TPS43 setup. `rdy-gpios = P1.02`, `reset-gpios = P1.01`. | Boots, driver binds, but **I2C NACK at 0x74** — touchpad doesn't ACK any transaction. |
-| `b481b7c` | Added `corne_right_debug` build target with `zmk-usb-logging` snippet. | Can now read logs over USB. |
-| `4222285` | Removed **both** RDY/NRST pins to try polling mode. | **Build failed** — driver requires `rdy-gpios`. |
-| `fd077a4` | Re-added `rdy-gpios = P1.02`, kept `reset-gpios` removed. Theory: wrong NRST pin was holding touchpad in reset. | Build ok; still NACKs (need to re-verify with logs). |
-| `4212e32` | **Swapped** the pins: `rdy-gpios = P1.01`, `reset-gpios = P1.02`. Enabled `CONFIG_I2C_LOG_LEVEL_DBG` + `CONFIG_LOG_MODE_IMMEDIATE`. | **Current state — not yet flashed/tested.** |
+**Cause 1 — Pins were inverted by commit `4212e32`.**
+That commit was a well-intentioned guess that happened to be wrong. Restoring
+RDY → P1.02 is mandatory.
 
-## Current Config State
+**Cause 2 — AYM1607 driver's post-reset race.**
+`drivers/input/iqs5xx.c` in the AYM1607 module does, when `reset-gpios` is
+wired: pulse reset 1ms → release → `k_msleep(10)` → configure RDY interrupt →
+`k_msleep(100)` → call `iqs5xx_setup_device()`. Total post-reset wait is ~111ms.
+IQS572 datasheet specifies ≥150ms for ATI, and real chips can take up to 500ms.
+Setup register writes hit a still-closed communication window, all NACK, init
+returns `-EIO`. This is why commit `61bd27b` — which had the correct pins —
+*still* failed.
 
-`config/corne.keymap`:
+For comparison, the stelmakhdigital TPS43-specific driver waits 610ms after
+reset release. AYM1607 is too aggressive.
+
+## Phase A Fix (current state)
+
+`config/corne.keymap` — touchpad node:
 ```dts
-tps43: iqs5xx@74 {
-    compatible = "azoteq,iqs5xx";
-    reg = <0x74>;
-    rdy-gpios   = <&gpio1 1 GPIO_ACTIVE_HIGH>;   /* P1.01 */
-    reset-gpios = <&gpio1 2 GPIO_ACTIVE_LOW>;    /* P1.02 */
-    one-finger-tap;
-    two-finger-tap;
-    press-and-hold;
-    scroll;
-    natural-scroll-y;
+&pro_micro_i2c {
+    status = "okay";
+
+    tps43: iqs5xx@74 {
+        compatible = "azoteq,iqs5xx";
+        reg = <0x74>;
+        rdy-gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;   /* P1.02, matches factory */
+        /* reset-gpios intentionally omitted — chip uses natural power-on reset,
+         * which completed long before Zephyr driver init runs, bypassing the
+         * 10ms-post-reset race in AYM1607's init sequence. */
+        one-finger-tap;
+        two-finger-tap;
+        press-and-hold;
+        scroll;
+        natural-scroll-y;
+    };
 };
 ```
 
-`config/corne.conf` (relevant):
+`config/boards/shields/corne/boards/nice_nano_v2.overlay`:
+```dts
+#include <zephyr/dt-bindings/i2c/i2c.h>
+
+&i2c0 {
+    status = "okay";
+    clock-frequency = <I2C_BITRATE_STANDARD>;   /* 100kHz, matches factory */
+};
 ```
-CONFIG_ZMK_POINTING=y
-CONFIG_ZMK_POINTING_SMOOTH_SCROLLING=y
-CONFIG_I2C=y
-CONFIG_I2C_LOG_LEVEL_DBG=y
-CONFIG_LOG_MODE_IMMEDIATE=y
-```
 
-I2C bus uses default Nice!Nano pins (`&pro_micro_i2c` → SDA=P0.17, SCL=P0.20).
+`config/corne.conf` — unchanged (already correct: `CONFIG_ZMK_POINTING=y`,
+`CONFIG_I2C=y`, `CONFIG_I2C_LOG_LEVEL_DBG=y`, `CONFIG_LOG_MODE_IMMEDIATE=y`).
 
-## Build Targets (`build.yaml`)
+## Testing Procedure
 
-- `corne_left_studio` — left half, ZMK Studio enabled (central).
-- `corne_right` — right half, production build.
-- `corne_right_debug` — **use this for touchpad debugging**, emits USB serial logs.
-- `settings_reset` — flash to wipe pairings.
-
-## How To Test
-
-1. Push the current commit (CI is GitHub Actions). Download `corne_right_debug.uf2` from the workflow artifacts.
-2. Plug **right half** into USB (double-tap reset to enter bootloader if needed) and flash.
-3. After it reboots, grab logs:
+1. Wait for GitHub Actions to build. Download `corne_right_debug.uf2`:
    ```
-   sudo screen /dev/ttyACM0 115200
+   gh run list --workflow build.yml --limit 1
+   gh run download <run-id> -n firmware
    ```
-   (Exit with `Ctrl-A K`.)
-4. Look for:
-   - `i2c_nrfx_twim: Error ...` or NACK messages → addressing/wiring problem.
-   - Driver probe success from the `iqs5xx` / `azoteq` tag → RDY/NRST are correct.
-   - Touch events on the input subsystem.
+2. Plug right half via USB. Double-tap reset → `NICENANO` volume mounts.
+3. Copy UF2 to `/Volumes/NICENANO/`. Board reboots automatically.
+4. Identify the serial port: only the debug build emits text.
+   ```
+   # Two /dev/cu.usbmodem* ports will exist. Debug half emits [time] <lvl> lines.
+   cat /dev/cu.usbmodem2143101    # Ctrl-C after a second
+   cat /dev/cu.usbmodem2143201
+   ```
+5. Tail the debug port:
+   ```
+   screen /dev/cu.usbmodemXXXX 115200   # Ctrl-A K to exit
+   ```
+6. Touch the pad. Interpret per decision gates below.
 
-## Live Theories (most → least likely)
+## Decision Gates
 
-1. **RDY/NRST still swapped wrong, or one of them isn't a GPIO line at all.** The backup firmware extraction only positively identified `P1.02`. `P1.01` is a guess for the other pin. It might actually be something else (nothing, or a different function). If the swap doesn't work, try `rdy-gpios = P1.02` + no `reset-gpios` again and *really* confirm the NACK from logs.
-2. **Wrong I2C address.** `0x74` comes from the backup firmware's devicetree label (`tps43_split@74`). Worth scanning the bus (enable an I2C scanner or check logs at boot — Zephyr logs attempted addresses at DBG level).
-3. **NRST polarity / idle level wrong.** We currently have `GPIO_ACTIVE_LOW` on reset. If the trace is actually an active-high enable, we're holding the chip disabled. Try inverting, or leave reset-gpios out entirely.
-4. **Missing I2C pull-ups.** Azoteq parts generally expect external pull-ups. If the PCB doesn't have them, SDA/SCL float and every transaction NACKs. A multimeter check of SDA/SCL idle voltage (should sit at 3.3V) would rule this out.
-5. **Power not reaching the touchpad.** The 5-pin "P2" header pinout isn't documented — we assumed 3V3/GND/SDA/SCL/RDY (or NRST). If VCC is on the wrong pin, the chip is unpowered and will NACK everything.
-6. **IQS572 vs IQS5xx driver mismatch.** The AYM1607 driver is written for the IQS5xx family generically; TPS43 / IQS572 should be in that family but the init register sequence might differ. Low probability — save for when the electrical layer is confirmed healthy.
+### ✅ Success signature
+- `iqs5xx: initialized` (or similar probe-success message) during boot
+- `input: ... rel_x=... rel_y=...` events when touching the pad
+- Cursor moves on macOS during touch
 
-## Open Questions / Things To Verify Next
+### 🟡 "0xEEEE" close-NACK only
+If logs show NACKs *only* on the `0xEEEE` write, that's the IQS5xx protocol's
+mandated communication-window-close. Normal. Ignore those specific NACKs.
 
-- [ ] Read the **backup UF2 again** with `tools/extract_pins.py` and grep for any `gpio_dt_spec` near I2C port structs — the RDY pin should pair with the `iqs5xx` device, giving us a definitive answer.
-- [ ] Probe the 5-pin P2 header with a multimeter to identify VCC/GND/SDA/SCL.
-- [ ] Scope or logic-analyze SDA/SCL during boot to see if the host is even talking, and if the target responds at all (distinguish "no ACK" from "no signal").
-- [ ] Try `reset-gpios` inverted (`GPIO_ACTIVE_HIGH`) as a cheap experiment.
-- [ ] If all else fails: re-flash the **backup firmware** (`firmware/original-backup/RIGHT.UF2`) and confirm the touchpad physically works — rules out hardware failure.
+### 🔴 Phase B1 — Patch AYM1607 driver timing
+If logs show sustained NACK loops on early setup register writes (e.g. at
+register `0x058F`, system config):
+- Fork `AYM1607/zmk-driver-azoteq-iqs5xx` into alliecatowo's GitHub.
+- Pin `config/west.yml` to the fork's branch.
+- In `drivers/input/iqs5xx.c` `iqs5xx_init`: replace `k_msleep(100)` with a poll
+  loop that waits up to 500ms for `gpio_pin_get_dt(&config->rdy_gpio) == 1`.
+- If you later want to add `reset-gpios` back, bump the `k_msleep(10)` after
+  reset release to `k_msleep(200)` as well.
+
+### 🔴 Phase B2 — Swap to stelmakhdigital driver
+If Phase B1 doesn't land cleanly, switch drivers:
+- `config/west.yml`: add project `zmk_driver_azoteq` from `stelmakhdigital` remote.
+- Keymap: `compatible = "azoteq,tps43"`, rename `reset-gpios` → `rst-gpios` (note
+  the different property name!), re-add NRST on P1.01 `GPIO_ACTIVE_LOW`.
+- Kconfig: enable `CONFIG_INPUT_AZOTEQ_IQS5XX=y` (symbol name differs from
+  AYM1607's).
+
+### 🔴 Phase C — Hardware sanity (only if B1+B2 both fail)
+- Multimeter the P2 header pinout (we assumed VCC/GND/SDA/SCL/RDY).
+- Scope SDA/SCL idle: should sit at 3.3V. Floating → pullups missing.
+- Re-flash `firmware/original-backup/RIGHT.UF2` to confirm hardware still works.
 
 ## Reference: Files You'll Touch
 
-- `config/corne.keymap` — touchpad devicetree node (lines ~29–49).
-- `config/corne.conf` — I2C/pointing kconfig.
-- `config/boards/shields/corne/boards/nice_nano_v2.overlay` — I2C bus enable.
-- `config/west.yml` — driver module pin.
-- `build.yaml` — add/remove build variants.
-- `tools/extract_pins.py` — firmware binary analyzer.
-- `firmware/original-backup/{LEFT,RIGHT}.UF2` — factory firmware, our ground truth.
+- `config/corne.keymap` — touchpad devicetree node.
+- `config/boards/shields/corne/boards/nice_nano_v2.overlay` — I2C bus config.
+- `config/corne.conf` — Kconfig (I2C, pointing, logging).
+- `config/west.yml` — driver module pin (only for Phase B).
+- `build.yaml` — build variants (`corne_right_debug` is what we flash).
+- `tools/extract_pins.py` — UF2 pin extractor. Reusable.
+- `firmware/original-backup/{LEFT,RIGHT}.UF2` — factory ground truth / rollback.
+
+## Reference: Driver Behavior Notes
+
+- AYM1607 `azoteq,iqs5xx`: configures `GPIO_INT_EDGE_RISING` on RDY, reads registers
+  in work handler triggered by RDY rising edge. Setup/init path is synchronous,
+  does NOT go through the work handler.
+- The `0xEEEE` close-window write is expected to NACK per IQS5xx protocol — don't
+  mistake for a real failure.
+- `reset-gpios` absent means driver skips its reset block entirely; clock relies on
+  natural power-on reset (fine, since board boot takes ≫150ms).
