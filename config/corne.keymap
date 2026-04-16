@@ -47,11 +47,15 @@
      *   0  default
      *   1  lower
      *   2  raise
-     *   3  adjust (aka bt_layer — BT + touchpad toggles)
-     *   5  scroll  (touchpad X/Y becomes scroll wheel — enter via &tog 5)
-     *   6  precision (touchpad at 1/2 speed — enter via &tog 6)
-     * (Layer 4 kept reserved — conditional_layer binds lower+raise -> adjust
-     *  via that slot.)
+     *   3  adjust (BT + touchpad mode toggles; lower+raise held -> this)
+     *   4  scroll mode (touchpad X/Y -> scroll wheel; toggle via &tog 4)
+     *   5  precise mode (touchpad 1/2 speed;        toggle via &tog 5)
+     *
+     * Scroll + Precise layers are mode toggles, not typing layers — all
+     * keys are &trans so your base-layer typing keeps working. They exist
+     * purely so the listener's input-processor override has a layer to
+     * gate on. ZMK's stock mechanism doesn't support non-layer runtime
+     * processor switching; a custom behavior would be needed for that.
      *
      * Touchpad hardware + split input forwarding live in corne_right.overlay
      * and corne_left.overlay. Shared keymap must NOT reference &tps43.
@@ -110,34 +114,21 @@
             >;
         };
 
-        /* Adjust (accessed via Lower + Raise held together OR via mo 3).
-         * Home of BT controls + touchpad mode toggles. */
+        /* Adjust — BT controls + touchpad mode toggles. Accessed via
+         * Lower + Raise held together (conditional_layers above). */
         adjust_layer {
             display-name = "Adj/BT";
             bindings = <
                 &bt BT_CLR &bt BT_SEL 0 &bt BT_SEL 1 &bt BT_SEL 2 &bt BT_SEL 3 &bt BT_SEL 4   &trans  &trans  &trans  &trans &trans &trans
-                &trans     &trans       &trans       &trans       &trans       &trans             &tog 5  &tog 6  &trans  &trans &trans &trans
+                &trans     &trans       &trans       &trans       &trans       &trans             &tog 4  &tog 5  &trans  &trans &trans &trans
                 &trans     &trans       &trans       &trans       &trans       &out OUT_TOG       &trans  &trans  &trans  &trans &trans &trans
                                                      &trans       &trans       &trans             &trans  &trans  &trans
             >;
         };
 
-        /* Reserved placeholder — conditional_layers points to layer 3 (adjust).
-         * Layer 4 is intentionally empty so the scroll/precision layer indices
-         * below match the corne_left.overlay input-processor overrides (5, 6). */
-        reserved_layer {
-            display-name = "—";
-            bindings = <
-                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
-                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
-                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
-                                     &trans &trans &trans   &trans &trans &trans
-            >;
-        };
-
-        /* Scroll mode — enter/exit via &tog 5 on adjust layer.
-         * Touchpad X/Y forwarded as scroll wheel via input processor.
-         * Keys still type normally while scroll mode is on. */
+        /* Scroll mode (toggled). Touchpad X/Y -> scroll wheel via the
+         * listener's input-processor override. All keys &trans so your
+         * normal layers still work while scroll mode is active. */
         scroll_layer {
             display-name = "Scroll";
             bindings = <
@@ -148,8 +139,7 @@
             >;
         };
 
-        /* Precision mode — enter/exit via &tog 6 on adjust layer.
-         * Touchpad at 1/2 speed for fine cursor work. */
+        /* Precision mode (toggled). Touchpad scaled to 1/2 speed. */
         precision_layer {
             display-name = "Precise";
             bindings = <

@@ -1,16 +1,15 @@
 /*
  * Left half (central) — split input proxy + listener for TPS43 touchpad.
  *
- * No touchpad hardware lives on this side. The `tps43_split` node here is a
- * virtual proxy (matching `reg = <0>` on the right half's forwarder); when
- * the peripheral sends an input event over BLE, the central routes it to
- * this proxy, and the listener below converts it to HID mouse reports over
- * USB / BLE.
+ * No touchpad hardware on this side. The `tps43_split` node is a virtual
+ * proxy (reg = <0> matches the right-half forwarder); peripheral input
+ * events cross BLE, this proxy re-emits, the listener converts to HID.
  *
- * Axis correction lives here on the central (post-driver). Layer-scoped
- * input processors (scroll mode, precision mode) are declared as persistent
- * toggles addressable via dedicated keys on the adjust layer — no
- * hold-a-layer-to-activate pattern. See corne.keymap for the bindings.
+ * Base: X-invert only. Scroll and Precise modes are persistent-toggle
+ * layers activated by `&tog` on the adjust layer — see corne.keymap
+ * layers 4 and 5. The overrides below gate their input-processor swap
+ * on those layers being active. (ZMK's stock mechanism: listener
+ * overrides are layer-indexed.)
  */
 
 #include <input/processors.dtsi>
@@ -34,16 +33,15 @@
         /* Base: invert X (physical pad mirrored vs chip default). */
         input-processors = <&zip_xy_transform INPUT_TRANSFORM_X_INVERT>;
 
-        /* Scroll mode — toggle on/off via &tog on adjust layer. */
+        /* Scroll mode (keymap layer 4) — touchpad X/Y -> scroll wheel. */
         scroller {
-            layers = <5>;
+            layers = <4>;
             input-processors = <&zip_xy_to_scroll_mapper>;
         };
 
-        /* Precision mode — toggle on/off via &tog on adjust layer.
-         * Stacks on base: movement scaled to 1/2 while layer active. */
+        /* Precision mode (keymap layer 5) — touchpad at 1/2 speed. */
         precision {
-            layers = <6>;
+            layers = <5>;
             input-processors = <&zip_xy_scaler 1 2>;
         };
     };
