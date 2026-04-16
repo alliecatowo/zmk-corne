@@ -1,2 +1,9 @@
-firmware/
 *.uf2
+
+# Ignore firmware artifacts but keep backup + flash helpers tracked.
+firmware/*
+!firmware/original-backup/
+!firmware/latest/
+firmware/latest/*
+!firmware/latest/*.sh
+!firmware/latest/README.md
