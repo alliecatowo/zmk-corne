@@ -33,7 +33,7 @@ right-half touchpad pins.
 
 ## Stacked Root Cause
 
-Previous debug focused only on cause #1. Both had to be fixed together.
+Previous debug focused only on cause #1. All three had to be fixed together.
 
 **Cause 1 — Pins were inverted by commit `4212e32`.**
 That commit was a well-intentioned guess that happened to be wrong. Restoring
@@ -51,41 +51,33 @@ returns `-EIO`. This is why commit `61bd27b` — which had the correct pins —
 For comparison, the stelmakhdigital TPS43-specific driver waits 610ms after
 reset release. AYM1607 is too aggressive.
 
-## Phase A Fix (current state)
+**Cause 3 — Missing `zmk,input-split` forwarding (central/peripheral bridge).**
+ZMK split keyboards isolate input devices to the half they're physically wired to.
+Our touchpad is on the peripheral (right), but HID reports come out of the
+central's (left) USB. Without a pair of `zmk,input-split` nodes — a source on
+the peripheral that forwards events over BLE, and a proxy on the central that
+re-emits them — the touchpad could be working perfectly and the host would
+never see a single event. The `zmk,input-listener` alone (our previous config)
+is NOT enough for split setups. This is confirmed from `app/src/pointing/input_split.c`
+in the ZMK source and cross-validated in `EyalYe/zmk-config` (a working Corne
++ TPS43 build). Pattern applied:
+- `corne_right.overlay`: `zmk,input-split` with `device = <&tps43>`, `reg = <0>`.
+- `corne_left.overlay`: `zmk,input-split` proxy with matching `reg = <0>`, no
+  `device`, plus the `zmk,input-listener` bound to the proxy.
 
-`config/corne.keymap` — touchpad node:
-```dts
-&pro_micro_i2c {
-    status = "okay";
+## Current State (Phase A + split-input fix)
 
-    tps43: iqs5xx@74 {
-        compatible = "azoteq,iqs5xx";
-        reg = <0x74>;
-        rdy-gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;   /* P1.02, matches factory */
-        /* reset-gpios intentionally omitted — chip uses natural power-on reset,
-         * which completed long before Zephyr driver init runs, bypassing the
-         * 10ms-post-reset race in AYM1607's init sequence. */
-        one-finger-tap;
-        two-finger-tap;
-        press-and-hold;
-        scroll;
-        natural-scroll-y;
-    };
-};
-```
+Split-shield layout:
 
-`config/boards/shields/corne/boards/nice_nano_v2.overlay`:
-```dts
-#include <zephyr/dt-bindings/i2c/i2c.h>
-
-&i2c0 {
-    status = "okay";
-    clock-frequency = <I2C_BITRATE_STANDARD>;   /* 100kHz, matches factory */
-};
-```
-
-`config/corne.conf` — unchanged (already correct: `CONFIG_ZMK_POINTING=y`,
-`CONFIG_I2C=y`, `CONFIG_I2C_LOG_LEVEL_DBG=y`, `CONFIG_LOG_MODE_IMMEDIATE=y`).
+- `config/boards/shields/corne/corne_right.overlay` — I2C bus, TPS43 device,
+  `zmk,input-split` source (forwards events to central over BLE).
+- `config/boards/shields/corne/corne_left.overlay` — `zmk,input-split` proxy +
+  `zmk,input-listener` (consumes forwarded events, emits HID mouse).
+- `config/corne.keymap` — only kscan wiring + keymap. No touchpad nodes.
+- `config/boards/shields/corne/boards/nice_nano_v2.overlay` — empty (I2C now
+  lives on right-only).
+- `config/corne.conf` — unchanged (`CONFIG_ZMK_POINTING=y`, `CONFIG_I2C=y`,
+  debug log vars).
 
 ## Testing Procedure
 
