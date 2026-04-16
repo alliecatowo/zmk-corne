@@ -25,7 +25,12 @@
         press-and-hold;
         scroll;
         natural-scroll-y;
-        flip-x;   /* physical pad is mirrored left/right relative to chip default */
+        /* X-axis inversion is handled on the central via listener-level
+         * zmk,input-processor-transform (see corne_left.overlay). Driver-level
+         * flip-x did not take effect in testing despite being the documented
+         * property — moving the transform to post-driver ZMK code eliminates
+         * the ambiguity and lines us up for the sensitivity/scroll/precision
+         * layers (input-processors) being added later. */
     };
 };
 

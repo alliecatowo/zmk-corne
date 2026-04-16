@@ -6,7 +6,15 @@
  * the peripheral sends an input event over BLE, the central routes it to
  * this proxy, and the listener below converts it to HID mouse reports over
  * USB / BLE.
+ *
+ * Axis correction lives here on the central (post-driver) via
+ * zmk,input-processor-transform. AYM1607's driver-level flip-x did not
+ * produce the expected inversion in testing, so we flip X here — a pattern
+ * known-good in urob and other community configs.
  */
+
+#include <input/processors.dtsi>
+#include <dt-bindings/zmk/input_transform.h>
 
 / {
     split_inputs {
@@ -22,5 +30,6 @@
     tps43_listener: tps43_listener {
         compatible = "zmk,input-listener";
         device = <&tps43_split>;
+        input-processors = <&zip_xy_transform INPUT_TRANSFORM_X_INVERT>;
     };
 };
