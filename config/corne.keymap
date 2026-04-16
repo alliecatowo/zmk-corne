@@ -27,44 +27,25 @@
 };
 
 /*
- * Behaviors — custom tap-dance and hold-tap bindings.
+ * Custom behaviors.
  *
- * esc_grv: tap=Esc, 2x=backtick, 3x=tilde. Lily58 equivalent of holding
- *          Shift+grave but without needing to touch a layer.
- * lower_alt: 1 tap = mo(lower), 2 taps within tapping-term = Alt.
- *            Per Allie's request. NOTE: tap-dance adds ~200ms delay on
- *            single-tap before layer activates (waiting to see if a
- *            second tap lands). If you find this annoying, swap to the
- *            hold-tap pattern in comments (hold=Alt, tap=mo lower,
- *            zero-delay).
+ * Top-left key: Esc on tap, backtick (`) on hold. Tilde (~) = Shift+hold.
+ * Uses ZMK's built-in &mt mod-tap — tap under tapping-term sends ESC,
+ * longer hold sends GRAVE. Simple and fast, no tap-dance delay.
+ *
+ * Left thumb leftmost: mo(lower) single-tap, Alt on double-press-and-hold.
+ * ZMK tap-dance: 1 tap = binding[0], 2+ taps = binding[1]. Holding the
+ * second tap keeps Alt held — works per Allie's spec.
  */
 
 / {
     behaviors {
-        esc_grv: esc_grv_tilde_tap_dance {
-            compatible = "zmk,behavior-tap-dance";
-            #binding-cells = <0>;
-            tapping-term-ms = <200>;
-            bindings = <&kp ESC>, <&kp GRAVE>, <&kp TILDE>;
-        };
-
         lower_alt: lower_alt_tap_dance {
             compatible = "zmk,behavior-tap-dance";
             #binding-cells = <0>;
             tapping-term-ms = <200>;
             bindings = <&mo 1>, <&kp LALT>;
         };
-
-        /* Alternative to lower_alt — uncomment to use zero-delay hold-tap:
-         * lower_alt_ht: lower_alt_hold_tap {
-         *     compatible = "zmk,behavior-hold-tap";
-         *     #binding-cells = <0>;
-         *     flavor = "tap-preferred";
-         *     tapping-term-ms = <200>;
-         *     bindings = <&kp LALT>, <&mo 1>;
-         * };
-         * Bind as `&lower_alt_ht` (hold=Alt, tap=mo 1, no tap-dance delay).
-         */
     };
 
     /*
@@ -103,7 +84,7 @@
         default_layer {
             display-name = "Base";
             bindings = <
-                &esc_grv  &kp Q &kp W &kp E &kp R &kp T   &kp Y &kp U  &kp I     &kp O   &kp P    &kp MINUS
+                &mt GRAVE ESC  &kp Q &kp W &kp E &kp R &kp T   &kp Y &kp U  &kp I     &kp O   &kp P    &kp MINUS
                 &kp TAB   &kp A &kp S &kp D &kp F &kp G   &kp H &kp J  &kp K     &kp L   &kp SEMI &kp SQT
                 &kp LSHFT &kp Z &kp X &kp C &kp V &kp B   &kp N &kp M  &kp COMMA &kp DOT &kp FSLH &kp RCTRL
                             &lower_alt &kp LGUI &kp SPACE   &kp RET &kp BSPC &mo 2
@@ -131,7 +112,7 @@
             bindings = <
                 &kp F1    &kp F2   &kp F3 &kp F4   &kp F5   &kp F6      &kp F7 &kp F8   &kp F9   &kp F10 &kp MINUS &kp EQUAL
                 &trans    &trans   &trans &trans   &trans   &trans      &trans &kp LEFT &kp DOWN &kp UP  &kp RIGHT &trans
-                &trans    &trans   &trans &trans   &trans   &trans      &kp UNDER &kp PLUS &kp LBRC &kp RBRC &kp PIPE &kp TILDE
+                &trans    &trans   &trans &trans   &trans   &trans      &kp UNDER &kp PLUS &kp LBRC &kp RBRC &kp PIPE &kp BSLH
                                           &trans   &trans   &trans      &trans &trans   &trans
             >;
         };
