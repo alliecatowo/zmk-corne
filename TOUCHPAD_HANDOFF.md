@@ -23,8 +23,8 @@ located the compiled `iqs5xx_config` struct at flash offset `0x60ae8`:
 |---|---|---|---|
 | RDY | **P1.02** | `GPIO_ACTIVE_HIGH` | gpio_dt_spec at `0x60b40`, `{port=P1, pin=2}` |
 | NRST | **P1.01** | `GPIO_ACTIVE_LOW` | gpio_dt_spec at `0x60b48`, `{port=P1, pin=1}` |
-| SCL | **P0.17** | — | `NRF_PSEL(TWIM_SCL)=0x000c0011` at `0x60b18` |
-| SDA | **P0.20** | — | `NRF_PSEL(TWIM_SDA)=0x000b0014` at `0x60b1c` |
+| SDA | **P0.17** | — | `NRF_PSEL(TWIM_SDA, 0, 17) = 0x000c0011` at `0x60b18` (fun=12=SDA) |
+| SCL | **P0.20** | — | `NRF_PSEL(TWIM_SCL, 0, 20) = 0x000b0014` at `0x60b1c` (fun=11=SCL) |
 | I2C freq | 100 kHz | — | `nrf_twim_frequency=0x01980000` at `0x60af8` |
 | I2C addr | 0x74 | — | node name `iqs5xx@74` |
 
@@ -121,15 +121,118 @@ register `0x058F`, system config):
 - If you later want to add `reset-gpios` back, bump the `k_msleep(10)` after
   reset release to `k_msleep(200)` as well.
 
-### 🔴 Phase B2 — Swap to stelmakhdigital driver
-If Phase B1 doesn't land cleanly, switch drivers:
-- `config/west.yml`: add project `zmk_driver_azoteq` from `stelmakhdigital` remote.
-- Keymap: `compatible = "azoteq,tps43"`, rename `reset-gpios` → `rst-gpios` (note
-  the different property name!), re-add NRST on P1.01 `GPIO_ACTIVE_LOW`.
-- Kconfig: enable `CONFIG_INPUT_AZOTEQ_IQS5XX=y` (symbol name differs from
-  AYM1607's).
+### 🔴 Phase B2 — Swap to stelmakhdigital driver (RECIPE)
 
-### 🔴 Phase C — Hardware sanity (only if B1+B2 both fail)
+Purpose-built for TPS43. Datasheet-correct timing (10ms reset + 610ms ATI wait
++ poll-until-SHOW_RESET before configure). `reg ` and bus unchanged; `zmk,input-split`
+unchanged.
+
+**1. `config/west.yml`** — replace the driver project:
+```yaml
+manifest:
+  defaults:
+    revision: v0.3
+  remotes:
+    - name: zmkfirmware
+      url-base: https://github.com/zmkfirmware
+    - name: stelmakhdigital
+      url-base: https://github.com/stelmakhdigital
+  projects:
+    - name: zmk
+      remote: zmkfirmware
+      import: app/west.yml
+    - name: zmk-driver-azoteq
+      remote: stelmakhdigital
+      revision: main
+  self:
+    path: config
+```
+
+**2. `config/boards/shields/corne/corne_right.overlay`** — swap compatible + property names,
+add NRST back (safe here — driver waits 610ms post-reset):
+```dts
+&pro_micro_i2c {
+    status = "okay";
+    clock-frequency = <I2C_BITRATE_STANDARD>;   /* or I2C_BITRATE_FAST; factory used STANDARD */
+
+    tps43: trackpad@74 {
+        compatible = "azoteq,tps43";             /* was azoteq,iqs5xx */
+        reg = <0x74>;
+        rdy-gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;
+        rst-gpios = <&gpio1 1 GPIO_ACTIVE_LOW>;  /* add back — property name is rst not reset */
+        single-tap;                              /* was one-finger-tap */
+        two-finger-tap;
+        press-and-hold;
+        scroll;
+        invert-scroll-y;                         /* was natural-scroll-y */
+    };
+};
+
+/* split_inputs block unchanged */
+```
+
+**3. `config/corne.conf`** — add driver Kconfig:
+```
+CONFIG_INPUT_TPS43=y
+```
+
+**Property renames** (common gotcha):
+| AYM1607 | stelmakhdigital |
+|---|---|
+| `reset-gpios` | `rst-gpios` |
+| `one-finger-tap` | `single-tap` |
+| `natural-scroll-y` | `invert-scroll-y` |
+
+Emit codes (identical): `INPUT_REL_X/Y/WHEEL/HWHEEL`, `INPUT_BTN_0/1`. Our central
+`zmk,input-listener` consumes these unchanged.
+
+### 🟠 Phase B3 — Check P1.29 (possible touchpad power gate)
+
+Deep factory UF2 extract found a GPIO at **P1.29 with complex flags `0x0539`**
+(active-low + pull-up + additional config bits) that appears in the RIGHT half
+only. The researcher flagged it as "possibly EXT_POWER enable" — i.e. a 3V3 gate
+controlling power to the TPS43. ZMK's default `nice_nano_v2` EXT_POWER node
+targets **P0.13** (`ext_power: control-gpios = <&gpio0 13 GPIO_OPEN_DRAIN>`),
+which is Nice!Nano's on-board rail. But the AliExpress Corne PCB may have
+rerouted the touchpad's 3V3 to a separate, independently-switched rail on P1.29.
+
+If that's the case, we never enable P1.29 in our build → the chip is
+**unpowered** → every I2C transaction NACKs, regardless of any other fix.
+
+**Symptoms that point to this:**
+- Flashed Phase A + split-input build, still every transaction NACKs
+- Logs show "device not found" or "no ACK" on `iqs5xx_setup_device`'s first
+  register write at `0x058F`, not partway through the sequence
+
+**Fix to try:**
+Add a shield-level GPIO output that drives P1.29 active on boot. Simplest way —
+add to `config/boards/shields/corne/corne_right.overlay`:
+```dts
+/ {
+    tp_power: tp-power {
+        compatible = "zmk,ext-power-generic";
+        control-gpios = <&gpio1 29 GPIO_OPEN_DRAIN>;
+        init-delay-ms = <50>;
+    };
+
+    chosen {
+        zmk,ext-power = &tp_power;
+    };
+};
+```
+And enable in `config/corne.conf`:
+```
+CONFIG_ZMK_EXT_POWER=y
+```
+
+This overrides nice_nano_v2's default ext-power node to point at P1.29.
+
+**Caveat:** the flags `0x0539` are complex (not clean ACTIVE_HIGH/LOW), so
+polarity is not certain. If the touchpad still doesn't respond, try
+`GPIO_ACTIVE_LOW` as well. Worst case, short experimentally with
+`gpio-keys` / fixed-regulator bindings.
+
+### 🔴 Phase C — Hardware sanity (only if B1+B2+B3 all fail)
 - Multimeter the P2 header pinout (we assumed VCC/GND/SDA/SCL/RDY).
 - Scope SDA/SCL idle: should sit at 3.3V. Floating → pullups missing.
 - Re-flash `firmware/original-backup/RIGHT.UF2` to confirm hardware still works.
