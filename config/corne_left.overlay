@@ -7,10 +7,12 @@
  * this proxy, and the listener below converts it to HID mouse reports over
  * USB / BLE.
  *
- * Axis correction lives here on the central (post-driver) via
- * zmk,input-processor-transform. AYM1607's driver-level flip-x did not
- * produce the expected inversion in testing, so we flip X here — a pattern
- * known-good in urob and other community configs.
+ * Axis correction + sensitivity + layer-scoped transforms all live here on
+ * the central (post-driver) via zmk,input-processor-transform /
+ * zmk,input-processor-scaler / zmk,input-processor-code-mapper. This is
+ * the layer-aware path: layer state is authoritative on the central, so
+ * layer-conditional processors like scroll-mode and precision-mode must
+ * be attached here (not on the peripheral's forwarder).
  */
 
 #include <input/processors.dtsi>
@@ -30,6 +32,28 @@
     tps43_listener: tps43_listener {
         compatible = "zmk,input-listener";
         device = <&tps43_split>;
-        input-processors = <&zip_xy_transform INPUT_TRANSFORM_X_INVERT>;
+
+        /* Base: invert X (physical pad mirrored vs chip default) + scale
+         * movement to 1/2 of raw (TPS43 is otherwise very fast). */
+        input-processors =
+            <&zip_xy_transform INPUT_TRANSFORM_X_INVERT>,
+            <&zip_xy_scaler 1 2>;
+
+        /* Precision mode (layer 6, momentary): stack an additional 1/2 scaler
+         * on top of the base 1/2 via process-next. Net: 1/4 of raw movement.
+         * Good for small-target clicks. Layer indices MUST match corne.keymap. */
+        precision {
+            layers = <6>;
+            input-processors = <&zip_xy_scaler 1 2>;
+            process-next;
+        };
+
+        /* Scroll mode (layer 5, momentary): re-map touchpad X/Y cursor
+         * movement to scroll wheel events. Does NOT stack with base —
+         * process-next intentionally omitted so only this runs. */
+        scroller {
+            layers = <5>;
+            input-processors = <&zip_xy_to_scroll_mapper>;
+        };
     };
 };

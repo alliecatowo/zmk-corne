@@ -27,12 +27,19 @@
 };
 
 /*
- * TPS43 touchpad hardware (I2C device, RDY GPIO) is declared in
- * `config/boards/shields/corne/corne_right.overlay` (peripheral-only).
+ * Layer indices (referenced by corne_left.overlay input-processor layer
+ * overrides, so these must stay in sync):
+ *   0  default
+ *   1  lower
+ *   2  raise
+ *   3  bt_layer
+ *   4  mouse_layer  (toggle; keyboard mouse buttons + scroll keys)
+ *   5  scroll_layer (momentary; touchpad X/Y becomes scroll wheel)
+ *   6  precision_layer (momentary; touchpad sensitivity 1/4 of base)
  *
- * Split input forwarding is declared per-side in `corne_right.overlay`
- * (zmk,input-split source) and `corne_left.overlay` (proxy + listener).
- * The shared keymap must NOT reference `&tps43` — it doesn't exist on left.
+ * Touchpad hardware + split input forwarding live in corne_right.overlay
+ * and corne_left.overlay respectively. The shared keymap must NOT
+ * reference &tps43 — it doesn't exist on the central.
  */
 
 / {
@@ -72,10 +79,48 @@
         bt_layer {
             display-name = "BT/Sys";
             bindings = <
-                &bt BT_CLR &bt BT_SEL 0 &bt BT_SEL 1 &bt BT_SEL 2 &bt BT_SEL 3 &bt BT_SEL 4   &trans &trans &trans &trans &trans &trans
-                &trans     &trans       &trans       &trans       &trans       &trans             &trans &trans &trans &trans &trans &trans
-                &trans     &trans       &trans       &trans       &trans       &out OUT_TOG       &trans &trans &trans &trans &trans &trans
-                                                     &trans       &trans       &trans             &trans &trans &trans
+                &bt BT_CLR &bt BT_SEL 0 &bt BT_SEL 1 &bt BT_SEL 2 &bt BT_SEL 3 &bt BT_SEL 4   &trans    &trans    &trans  &trans &trans &trans
+                &trans     &trans       &trans       &trans       &trans       &trans             &tog 4    &mo 5     &mo 6   &trans &trans &trans
+                &trans     &trans       &trans       &trans       &trans       &out OUT_TOG       &trans    &trans    &trans  &trans &trans &trans
+                                                     &trans       &trans       &trans             &trans    &trans    &trans
+            >;
+        };
+
+        /* Layer 4 — mouse mode (toggle). Keyboard-driven mouse buttons + scroll.
+         * Home-row (J, K, L) = L/M/R click. Below them = scroll keys + scroll/precision mo. */
+        mouse_layer {
+            display-name = "Mouse";
+            bindings = <
+                &trans &trans &trans &trans &trans &trans   &trans        &trans         &trans         &trans         &trans &trans
+                &trans &trans &trans &trans &trans &trans   &trans        &mkp LCLK      &mkp MCLK      &mkp RCLK      &trans &trans
+                &trans &trans &trans &trans &trans &trans   &trans        &msc SCRL_UP   &msc SCRL_DOWN &mo 5          &mo 6  &trans
+                                     &trans &trans &trans   &mkp LCLK     &mo 5          &mkp RCLK
+            >;
+        };
+
+        /* Layer 5 — scroll mode (momentary). Touchpad movement becomes scroll
+         * via the zip_xy_to_scroll_mapper input processor in corne_left.overlay.
+         * Keys are all &trans so typing still works while held. */
+        scroll_layer {
+            display-name = "Scroll";
+            bindings = <
+                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
+                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
+                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
+                                     &trans &trans &trans   &trans &trans &trans
+            >;
+        };
+
+        /* Layer 6 — precision mode (momentary). Touchpad sensitivity reduced
+         * to 1/4 of base via stacked zip_xy_scaler + process-next in
+         * corne_left.overlay. Keys are all &trans. */
+        precision_layer {
+            display-name = "Precise";
+            bindings = <
+                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
+                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
+                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
+                                     &trans &trans &trans   &trans &trans &trans
             >;
         };
     };
