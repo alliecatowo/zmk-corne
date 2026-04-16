@@ -28,14 +28,7 @@
 
 /*
  * Custom behaviors.
- *
- * Top-left key: Esc on tap, backtick (`) on hold. Tilde (~) = Shift+hold.
- * Uses ZMK's built-in &mt mod-tap — tap under tapping-term sends ESC,
- * longer hold sends GRAVE. Simple and fast, no tap-dance delay.
- *
  * Left thumb leftmost: mo(lower) single-tap, Alt on double-press-and-hold.
- * ZMK tap-dance: 1 tap = binding[0], 2+ taps = binding[1]. Holding the
- * second tap keeps Alt held — works per Allie's spec.
  */
 
 / {
@@ -84,7 +77,7 @@
         default_layer {
             display-name = "Base";
             bindings = <
-                &mt GRAVE ESC  &kp Q &kp W &kp E &kp R &kp T   &kp Y &kp U  &kp I     &kp O   &kp P    &kp MINUS
+                &kp ESC   &kp Q &kp W &kp E &kp R &kp T   &kp Y &kp U  &kp I     &kp O   &kp P    &kp MINUS
                 &kp TAB   &kp A &kp S &kp D &kp F &kp G   &kp H &kp J  &kp K     &kp L   &kp SEMI &kp SQT
                 &kp LSHFT &kp Z &kp X &kp C &kp V &kp B   &kp N &kp M  &kp COMMA &kp DOT &kp FSLH &kp RCTRL
                             &lower_alt &kp LGUI &kp SPACE   &kp RET &kp BSPC &mo 2
@@ -96,7 +89,7 @@
         lower_layer {
             display-name = "Lower";
             bindings = <
-                &kp TILDE &kp N1   &kp N2 &kp N3   &kp N4   &kp N5      &kp N6   &kp N7   &kp N8   &kp N9   &kp N0    &kp BSPC
+                &kp GRAVE &kp N1   &kp N2 &kp N3   &kp N4   &kp N5      &kp N6   &kp N7   &kp N8   &kp N9   &kp N0    &kp BSPC
                 &trans    &kp EXCL &kp AT &kp HASH &kp DLLR &kp PRCNT   &kp CARET &kp AMPS &kp STAR &kp LPAR &kp RPAR  &trans
                 &trans    &trans   &trans &trans   &trans   &trans      &trans    &trans   &trans   &trans   &trans    &trans
                                        &trans &trans &trans   &trans &trans   &trans
