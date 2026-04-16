@@ -1,0 +1,73 @@
+name: Release firmware
+
+# Cuts a release, runs the build, and attaches all UF2s.
+# Trigger: push a tag like `v2026.04.16-tps43-working` OR manual dispatch.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v2026.04.16-tps43-working). Leave blank to auto-date."
+        required: false
+        default: ""
+      name:
+        description: "Release name"
+        required: false
+        default: "Firmware build"
+      notes:
+        description: "Release notes (one-line)"
+        required: false
+        default: "Auto-release from workflow_dispatch."
+
+jobs:
+  build:
+    uses: zmkfirmware/zmk/.github/workflows/build-user-config.yml@v0.3
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download firmware artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: firmware
+          path: firmware
+
+      - name: Derive tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "tag=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+            echo "name=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+          else
+            TAG="${{ github.event.inputs.tag }}"
+            if [ -z "$TAG" ]; then
+              TAG="v$(date -u +%Y.%m.%d-%H%M)"
+            fi
+            echo "tag=${TAG}" >> $GITHUB_OUTPUT
+            echo "name=${{ github.event.inputs.name }}" >> $GITHUB_OUTPUT
+            # Create+push the tag if manual
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag "$TAG" ${{ github.sha }} || true
+            git push origin "$TAG" || true
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.name }}
+          body: |
+            ${{ github.event.inputs.notes }}
+
+            Built from commit ${{ github.sha }}.
+
+            Flash via DFU serial (see `firmware/latest/dfu-flash.sh`) or UF2 drag-drop.
+          files: |
+            firmware/*.uf2
+          generate_release_notes: true
