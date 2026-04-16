@@ -1,5 +1,0 @@
-/*
- * Board-specific overrides that apply to BOTH halves.
- * I2C is now enabled per-half in corne_right.overlay only, since only the
- * right half has an I2C peripheral (the TPS43 touchpad).
- */
