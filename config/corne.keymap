@@ -27,158 +27,55 @@
 };
 
 /*
- * Behaviors — custom tap-dance and hold-tap bindings.
+ * TPS43 touchpad hardware (I2C device, RDY GPIO) is declared in
+ * `config/boards/shields/corne/corne_right.overlay` (peripheral-only).
  *
- * esc_grv: tap=Esc, 2x=backtick, 3x=tilde. Lily58 equivalent of holding
- *          Shift+grave but without needing to touch a layer.
- * lower_alt: 1 tap = mo(lower), 2 taps within tapping-term = Alt.
- *            Per Allie's request. NOTE: tap-dance adds ~200ms delay on
- *            single-tap before layer activates (waiting to see if a
- *            second tap lands). If you find this annoying, swap to the
- *            hold-tap pattern in comments (hold=Alt, tap=mo lower,
- *            zero-delay).
+ * Split input forwarding is declared per-side in `corne_right.overlay`
+ * (zmk,input-split source) and `corne_left.overlay` (proxy + listener).
+ * The shared keymap must NOT reference `&tps43` — it doesn't exist on left.
  */
 
 / {
-    behaviors {
-        esc_grv: esc_grv_tilde_tap_dance {
-            compatible = "zmk,behavior-tap-dance";
-            #binding-cells = <0>;
-            tapping-term-ms = <200>;
-            bindings = <&kp ESC>, <&kp GRAVE>, <&kp TILDE>;
-        };
-
-        lower_alt: lower_alt_tap_dance {
-            compatible = "zmk,behavior-tap-dance";
-            #binding-cells = <0>;
-            tapping-term-ms = <200>;
-            bindings = <&mo 1>, <&kp LALT>;
-        };
-
-        /* Alternative to lower_alt — uncomment to use zero-delay hold-tap:
-         * lower_alt_ht: lower_alt_hold_tap {
-         *     compatible = "zmk,behavior-hold-tap";
-         *     #binding-cells = <0>;
-         *     flavor = "tap-preferred";
-         *     tapping-term-ms = <200>;
-         *     bindings = <&kp LALT>, <&mo 1>;
-         * };
-         * Bind as `&lower_alt_ht` (hold=Alt, tap=mo 1, no tap-dance delay).
-         */
-    };
-
-    /*
-     * Layer indices — referenced by corne_left.overlay input-processor
-     * overrides. Keep in sync.
-     *   0  default
-     *   1  lower
-     *   2  raise
-     *   3  adjust (aka bt_layer — BT + touchpad toggles)
-     *   5  scroll  (touchpad X/Y becomes scroll wheel — enter via &tog 5)
-     *   6  precision (touchpad at 1/2 speed — enter via &tog 6)
-     * (Layer 4 kept reserved — conditional_layer binds lower+raise -> adjust
-     *  via that slot.)
-     *
-     * Touchpad hardware + split input forwarding live in corne_right.overlay
-     * and corne_left.overlay. Shared keymap must NOT reference &tps43.
-     */
-
-    conditional_layers {
-        compatible = "zmk,conditional-layers";
-        adjust {
-            if-layers = <1 2>;
-            then-layer = <3>;
-        };
-    };
-
     keymap {
         compatible = "zmk,keymap";
 
-        /* ╭─────────────────────────┬─────────────────────────╮
-         * │ Esc/` Q  W  E  R  T     │   Y  U  I  O  P   -_    │
-         * │ Tab   A  S  D  F  G     │   H  J  K  L  ;   '     │
-         * │ Sft   Z  X  C  V  B     │   N  M  ,  .  /   Ctrl  │
-         * ╰──────────╮ GUI Lw Spc   │   Ent Del Rse ╭─────────╯
-         */
         default_layer {
             display-name = "Base";
             bindings = <
-                &esc_grv  &kp Q &kp W &kp E &kp R &kp T   &kp Y &kp U  &kp I     &kp O   &kp P    &kp MINUS
-                &kp TAB   &kp A &kp S &kp D &kp F &kp G   &kp H &kp J  &kp K     &kp L   &kp SEMI &kp SQT
-                &kp LSHFT &kp Z &kp X &kp C &kp V &kp B   &kp N &kp M  &kp COMMA &kp DOT &kp FSLH &kp RCTRL
-                            &lower_alt &kp LGUI &kp SPACE   &kp RET &kp DEL &mo 2
+                &kp TAB   &kp Q &kp W &kp E &kp R &kp T   &kp Y &kp U  &kp I     &kp O   &kp P    &kp BSPC
+                &kp LCTRL &kp A &kp S &kp D &kp F &kp G   &kp H &kp J  &kp K     &kp L   &kp SEMI &kp SQT
+                &kp LSHFT &kp Z &kp X &kp C &kp V &kp B   &kp N &kp M  &kp COMMA &kp DOT &kp FSLH &kp ESC
+                              &kp LGUI &mo 1 &kp SPACE   &kp RET &mo 2 &kp RALT
             >;
         };
 
-        /* Lower — numbers top-row, arrows on right home-row (like Lily). */
         lower_layer {
             display-name = "Lower";
             bindings = <
-                &kp TILDE &kp N1 &kp N2 &kp N3 &kp N4 &kp N5   &kp N6   &kp N7   &kp N8 &kp N9    &kp N0  &kp BSPC
-                &trans    &trans &trans &trans &trans &trans   &kp LEFT &kp DOWN &kp UP &kp RIGHT &trans  &trans
-                &trans    &trans &trans &trans &trans &trans   &trans   &trans   &trans &trans    &trans  &trans
-                                       &trans &trans &trans   &trans   &trans   &trans
+                &kp TILDE &kp N1 &kp N2 &kp N3 &kp N4 &kp N5   &kp N6   &kp N7   &kp N8 &kp N9    &kp N0  &kp DEL
+                &trans    &trans &trans &trans &trans &trans      &kp LEFT &kp DOWN &kp UP &kp RIGHT &trans  &trans
+                &trans    &trans &trans &trans &trans &trans      &trans   &trans   &trans &trans    &trans  &trans
+                                       &trans &trans &trans      &trans   &mo 3    &trans
             >;
         };
 
-        /* Raise — symbols + F-keys. Mirrors Lily's RAISE structure. */
         raise_layer {
             display-name = "Raise";
             bindings = <
-                &kp GRAVE &kp EXCL &kp AT &kp HASH &kp DLLR &kp PRCNT   &kp CARET &kp AMPS  &kp STAR &kp LPAR &kp RPAR &kp BSPC
-                &kp F1    &kp F2   &kp F3 &kp F4   &kp F5   &kp F6      &kp F7    &kp F8    &kp F9   &kp F10  &kp F11  &kp F12
-                &trans    &trans   &trans &trans   &trans   &trans      &kp UNDER &kp PLUS  &kp LBRC &kp RBRC &kp PIPE &kp TILDE
-                                          &trans   &trans   &trans      &trans    &trans    &trans
+                &kp GRAVE &kp EXCL &kp AT &kp HASH &kp DLLR &kp PRCNT   &kp CARET &kp AMPS  &kp STAR &kp LPAR &kp RPAR &kp DEL
+                &trans    &trans   &trans &trans   &trans   &trans       &kp MINUS &kp EQUAL &kp LBKT &kp RBKT &kp BSLH &kp GRAVE
+                &trans    &trans   &trans &trans   &trans   &trans       &kp UNDER &kp PLUS  &kp LBRC &kp RBRC &kp PIPE &kp TILDE
+                                          &trans   &mo 3    &trans       &trans    &trans    &trans
             >;
         };
 
-        /* Adjust (accessed via Lower + Raise held together OR via mo 3).
-         * Home of BT controls + touchpad mode toggles. */
-        adjust_layer {
-            display-name = "Adj/BT";
+        bt_layer {
+            display-name = "BT/Sys";
             bindings = <
-                &bt BT_CLR &bt BT_SEL 0 &bt BT_SEL 1 &bt BT_SEL 2 &bt BT_SEL 3 &bt BT_SEL 4   &trans  &trans  &trans  &trans &trans &trans
-                &trans     &trans       &trans       &trans       &trans       &trans             &tog 5  &tog 6  &trans  &trans &trans &trans
-                &trans     &trans       &trans       &trans       &trans       &out OUT_TOG       &trans  &trans  &trans  &trans &trans &trans
-                                                     &trans       &trans       &trans             &trans  &trans  &trans
-            >;
-        };
-
-        /* Reserved placeholder — conditional_layers points to layer 3 (adjust).
-         * Layer 4 is intentionally empty so the scroll/precision layer indices
-         * below match the corne_left.overlay input-processor overrides (5, 6). */
-        reserved_layer {
-            display-name = "—";
-            bindings = <
-                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
-                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
-                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
-                                     &trans &trans &trans   &trans &trans &trans
-            >;
-        };
-
-        /* Scroll mode — enter/exit via &tog 5 on adjust layer.
-         * Touchpad X/Y forwarded as scroll wheel via input processor.
-         * Keys still type normally while scroll mode is on. */
-        scroll_layer {
-            display-name = "Scroll";
-            bindings = <
-                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
-                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
-                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
-                                     &trans &trans &trans   &trans &trans &trans
-            >;
-        };
-
-        /* Precision mode — enter/exit via &tog 6 on adjust layer.
-         * Touchpad at 1/2 speed for fine cursor work. */
-        precision_layer {
-            display-name = "Precise";
-            bindings = <
-                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
-                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
-                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
-                                     &trans &trans &trans   &trans &trans &trans
+                &bt BT_CLR &bt BT_SEL 0 &bt BT_SEL 1 &bt BT_SEL 2 &bt BT_SEL 3 &bt BT_SEL 4   &trans &trans &trans &trans &trans &trans
+                &trans     &trans       &trans       &trans       &trans       &trans             &trans &trans &trans &trans &trans &trans
+                &trans     &trans       &trans       &trans       &trans       &out OUT_TOG       &trans &trans &trans &trans &trans &trans
+                                                     &trans       &trans       &trans             &trans &trans &trans
             >;
         };
     };

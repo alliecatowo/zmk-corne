@@ -1,10 +1,10 @@
 /*
  * Right half (peripheral) — touchpad hardware + split input forwarder.
  *
- * Using AYM1607's driver (compatible = "azoteq,iqs5xx"). stelmakhdigital
- * was attempted as a power-management win but produced no cursor events
- * on this hardware; reverted for now. Can revisit later with more careful
- * debug (dts compat, init delay, rst polarity). See TOUCHPAD_HANDOFF R1.
+ * The `tps43_split` node of `zmk,input-split` intercepts raw input events
+ * from the IQS5xx driver and forwards them over BLE to the central. The
+ * central has a matching proxy node (same reg=0) that re-emits them for
+ * its input-listener to convert to HID mouse reports.
  */
 
 #include <zephyr/dt-bindings/i2c/i2c.h>
@@ -25,6 +25,12 @@
         press-and-hold;
         scroll;
         natural-scroll-y;
+        /* X-axis inversion is handled on the central via listener-level
+         * zmk,input-processor-transform (see corne_left.overlay). Driver-level
+         * flip-x did not take effect in testing despite being the documented
+         * property — moving the transform to post-driver ZMK code eliminates
+         * the ambiguity and lines us up for the sensitivity/scroll/precision
+         * layers (input-processors) being added later. */
     };
 };
 
