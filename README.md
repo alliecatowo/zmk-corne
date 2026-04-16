@@ -27,6 +27,13 @@ Defined in `build.yaml`:
 | `corne_right_debug` | Right half + `zmk-usb-logging` snippet. Flash this for touchpad/I2C debugging. |
 | `settings_reset` | Wipes BT pairings + NVS. Only flash if halves can't re-pair. |
 
+## ⚠️ After flashing the right half: power-cycle it
+
+Every flash: **unplug the right half's USB → wait 2s → replug.** DFU reboots
+the MCU but NOT the touchpad chip, whose state machine wedges if it was
+mid-I2C-transaction at reboot. Symptoms of skipping this: touchpad appears
+rotated/laggy/dead. See [`TOUCHPAD_HANDOFF.md`](TOUCHPAD_HANDOFF.md#critical--power-cycle-after-flashing-the-right-half).
+
 ## Flashing
 
 Standard UF2 drag-drop works if macOS allows removable-storage mounts (`Privacy & Security → Allow accessories to connect → Always Allow`). MDM-managed Macs typically block this.

@@ -7,10 +7,10 @@
  * this proxy, and the listener below converts it to HID mouse reports over
  * USB / BLE.
  *
- * Axis correction lives here on the central (post-driver) via
- * zmk,input-processor-transform. AYM1607's driver-level flip-x did not
- * produce the expected inversion in testing, so we flip X here — a pattern
- * known-good in urob and other community configs.
+ * Axis correction lives here on the central (post-driver). Layer-scoped
+ * input processors (scroll mode, precision mode) are declared as persistent
+ * toggles addressable via dedicated keys on the adjust layer — no
+ * hold-a-layer-to-activate pattern. See corne.keymap for the bindings.
  */
 
 #include <input/processors.dtsi>
@@ -30,6 +30,21 @@
     tps43_listener: tps43_listener {
         compatible = "zmk,input-listener";
         device = <&tps43_split>;
+
+        /* Base: invert X (physical pad mirrored vs chip default). */
         input-processors = <&zip_xy_transform INPUT_TRANSFORM_X_INVERT>;
+
+        /* Scroll mode — toggle on/off via &tog on adjust layer. */
+        scroller {
+            layers = <5>;
+            input-processors = <&zip_xy_to_scroll_mapper>;
+        };
+
+        /* Precision mode — toggle on/off via &tog on adjust layer.
+         * Stacks on base: movement scaled to 1/2 while layer active. */
+        precision {
+            layers = <6>;
+            input-processors = <&zip_xy_scaler 1 2>;
+        };
     };
 };
