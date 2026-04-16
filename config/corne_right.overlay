@@ -30,9 +30,12 @@
         rdy-gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;
         rst-gpios = <&gpio1 1 GPIO_ACTIVE_LOW>;
 
-        /* Suspend chip on ZMK_ACTIVITY_IDLE, resume on ACTIVE. Primary battery
-         * win — chip stays in <1uA suspend instead of ~227uA idle. */
-        enable-power-management;
+        /* Gated on battery. When enabled, chip suspends on ZMK_ACTIVITY_IDLE
+         * (<1uA vs ~227uA) — but the first touch after 30s idle is swallowed
+         * because stelmakhdigital disables the RDY interrupt during suspend.
+         * Fine on battery where power matters. Annoying on USB. Uncomment
+         * when a battery goes in. */
+        /* enable-power-management; */
 
         single-tap;
         two-finger-tap;

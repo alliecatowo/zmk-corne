@@ -123,6 +123,18 @@ Add a `mouse_layer` (layer 4) with:
 - `&mo 6` → precision-mode layer momentary
 - Toggles (`&tog 4`, `&tog 5`, `&tog 6`) added to `bt_layer`
 
+### R4b. ZMK core patch: rate-limit BAS notifications
+
+macOS wakes from display sleep on every GATT BAS notification (ZMK issue #1273).
+ZMK only fires notify on percentage change, but during active use the handful
+of notifications per hour still causes occasional display wakes. The only
+clean fix without losing macOS battery % visibility is a ZMK-core patch: add
+`CONFIG_ZMK_BATTERY_NOTIFY_INTERVAL_MIN_S` — minimum seconds between BAS
+notifies regardless of change. Fork ZMK, patch `app/src/battery.c` to debounce
+the `bt_bas_set_battery_level` call, pin west.yml to the fork. ~30 lines.
+Work to do once R1 + R4 have baked and we know this is a real issue vs.
+theoretical.
+
 ### R4. Sleep + battery config (small, high-leverage)
 
 In `config/corne.conf`:
