@@ -40,22 +40,27 @@ jobs:
 
       - name: Derive tag
         id: tag
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          INPUT_NAME: ${{ github.event.inputs.name }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            echo "tag=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
-            echo "name=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+          if [ "$EVENT_NAME" = "push" ]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           else
-            TAG="${{ github.event.inputs.tag }}"
+            TAG="$INPUT_TAG"
             if [ -z "$TAG" ]; then
               TAG="v$(date -u +%Y.%m.%d-%H%M)"
             fi
-            echo "tag=${TAG}" >> $GITHUB_OUTPUT
-            echo "name=${{ github.event.inputs.name }}" >> $GITHUB_OUTPUT
-            # Create+push the tag if manual
+            echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+            echo "name=${INPUT_NAME:-$TAG}" >> "$GITHUB_OUTPUT"
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag "$TAG" ${{ github.sha }} || true
+            git tag "$TAG" "$HEAD_SHA" || true
             git push origin "$TAG" || true
+          fi
 
       - name: Create release
         uses: softprops/action-gh-release@v2
