@@ -110,25 +110,29 @@
             >;
         };
 
-        /* Lower — numbers top-row, arrows on right home-row (like Lily). */
+        /* Lower — numbers + shift-number symbols. Held by left thumb.
+         * Arrows LIVE ON RAISE (Lily pattern, right-thumb hold). */
         lower_layer {
             display-name = "Lower";
             bindings = <
-                &kp TILDE &kp N1 &kp N2 &kp N3 &kp N4 &kp N5   &kp N6   &kp N7   &kp N8 &kp N9    &kp N0  &kp BSPC
-                &trans    &trans &trans &trans &trans &trans   &kp LEFT &kp DOWN &kp UP &kp RIGHT &trans  &trans
-                &trans    &trans &trans &trans &trans &trans   &trans   &trans   &trans &trans    &trans  &trans
-                                       &trans &trans &trans   &trans   &trans   &trans
+                &kp TILDE &kp N1   &kp N2 &kp N3   &kp N4   &kp N5      &kp N6   &kp N7   &kp N8   &kp N9   &kp N0    &kp BSPC
+                &trans    &kp EXCL &kp AT &kp HASH &kp DLLR &kp PRCNT   &kp CARET &kp AMPS &kp STAR &kp LPAR &kp RPAR  &trans
+                &trans    &trans   &trans &trans   &trans   &trans      &trans    &trans   &trans   &trans   &trans    &trans
+                                       &trans &trans &trans   &trans &trans   &trans
             >;
         };
 
-        /* Raise — symbols + F-keys. Mirrors Lily's RAISE structure. */
+        /* Raise — arrows + F-keys + math symbols. Held by right thumb.
+         * JKL; arrows on right home row (Lily one-off-vim pattern).
+         * MINUS + EQUAL grouped calculator-style top-right.
+         * F-keys on top row where they don't conflict with arrows. */
         raise_layer {
             display-name = "Raise";
             bindings = <
-                &kp GRAVE &kp EXCL &kp AT &kp HASH &kp DLLR &kp PRCNT   &kp CARET &kp AMPS  &kp STAR &kp LPAR &kp RPAR &kp BSPC
-                &kp F1    &kp F2   &kp F3 &kp F4   &kp F5   &kp F6      &kp F7    &kp F8    &kp F9   &kp F10  &kp F11  &kp F12
-                &trans    &trans   &trans &trans   &trans   &trans      &kp UNDER &kp PLUS  &kp LBRC &kp RBRC &kp PIPE &kp TILDE
-                                          &trans   &trans   &trans      &trans    &trans    &trans
+                &kp F1    &kp F2   &kp F3 &kp F4   &kp F5   &kp F6      &kp F7 &kp F8   &kp F9   &kp F10 &kp MINUS &kp EQUAL
+                &trans    &trans   &trans &trans   &trans   &trans      &trans &kp LEFT &kp DOWN &kp UP  &kp RIGHT &trans
+                &trans    &trans   &trans &trans   &trans   &trans      &kp UNDER &kp PLUS &kp LBRC &kp RBRC &kp PIPE &kp TILDE
+                                          &trans   &trans   &trans      &trans &trans   &trans
             >;
         };
 
