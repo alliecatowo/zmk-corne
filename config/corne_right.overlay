@@ -1,19 +1,10 @@
 /*
  * Right half (peripheral) — touchpad hardware + split input forwarder.
  *
- * Uses stelmakhdigital's TPS43-specific driver (compatible = "azoteq,tps43").
- * See TOUCHPAD_HANDOFF.md R1 for migration rationale — key wins over
- * AYM1607 are power management (<1uA suspend vs ~227uA always-active),
- * datasheet-correct post-reset timing, and proper I2C retry handling.
- *
- * Property naming differs from AYM1607:
- *   reset-gpios -> rst-gpios
- *   one-finger-tap -> single-tap
- *   natural-scroll-y -> invert-scroll-y
- *
- * NRST is added back (active-low on P1.01) — this driver waits 610ms after
- * reset release for ATI, so the race that forced us to omit reset-gpios on
- * AYM1607 doesn't apply here.
+ * Using AYM1607's driver (compatible = "azoteq,iqs5xx"). stelmakhdigital
+ * was attempted as a power-management win but produced no cursor events
+ * on this hardware; reverted for now. Can revisit later with more careful
+ * debug (dts compat, init delay, rst polarity). See TOUCHPAD_HANDOFF R1.
  */
 
 #include <zephyr/dt-bindings/i2c/i2c.h>
@@ -22,26 +13,18 @@
     status = "okay";
     clock-frequency = <I2C_BITRATE_STANDARD>;   /* 100kHz, matches factory */
 
-    tps43: trackpad@74 {
-        compatible = "azoteq,tps43";
+    tps43: iqs5xx@74 {
+        compatible = "azoteq,iqs5xx";
         reg = <0x74>;
-
-        /* Pins from factory RIGHT.UF2 extraction (flash offset 0x60ae8). */
+        /* Pins from factory RIGHT.UF2 (flash offset 0x60ae8).
+         * reset-gpios intentionally omitted — AYM1607's 10ms post-reset
+         * wait races the IQS572's ~150ms ATI time, so we rely on POR. */
         rdy-gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;
-        rst-gpios = <&gpio1 1 GPIO_ACTIVE_LOW>;
-
-        /* Gated on battery. When enabled, chip suspends on ZMK_ACTIVITY_IDLE
-         * (<1uA vs ~227uA) — but the first touch after 30s idle is swallowed
-         * because stelmakhdigital disables the RDY interrupt during suspend.
-         * Fine on battery where power matters. Annoying on USB. Uncomment
-         * when a battery goes in. */
-        /* enable-power-management; */
-
-        single-tap;
+        one-finger-tap;
         two-finger-tap;
         press-and-hold;
         scroll;
-        invert-scroll-y;
+        natural-scroll-y;
     };
 };
 
