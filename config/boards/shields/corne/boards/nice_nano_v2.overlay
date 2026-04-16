@@ -1,0 +1,4 @@
+/* Enable I2C logging for debugging touchpad */
+&i2c0 {
+    status = "okay";
+};
