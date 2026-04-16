@@ -1,270 +1,163 @@
-# Touchpad Debugging Handoff
+# Touchpad: Debug Chronology + Roadmap
 
-Status pinned to the Phase A attempt (this commit). Touchpad NACKed on every
-prior attempt; this iteration addresses a **stacked cause** that earlier debug
-sessions missed.
+**Status as of 2026-04-16: WORKING.** Cursor movement, tap-click, press-and-hold, two-finger scroll all confirmed functional on the right-half Azoteq TPS43 (IQS572) touchpad over BLE split to the left-half central. Released as `v2026.04.16-tps43-working`.
 
-## TL;DR
+---
 
-Right half has an Azoteq TPS43 (IQS572) touchpad on I2C `0x74`. Driver loads, but
-I2C transactions NACKed across every previous config — including the
-originally-correct pin assignment. This iteration lands a compound fix that
-addresses both root causes at once.
+## Final Working Config
 
-**Next step:** flash `corne_right_debug` UF2, capture USB serial logs, follow the
-decision-gate tree below.
+**Driver**: `github.com/AYM1607/zmk-driver-azoteq-iqs5xx` @ `main` (compatible = `azoteq,iqs5xx`).
 
-## Definitive Factory Pin Extraction
+**Pins** (factory-extracted from `firmware/original-backup/RIGHT.UF2`):
+- RDY = P1.02 `GPIO_ACTIVE_HIGH`
+- NRST = P1.01 (factory declares as `GPIO_INPUT`; we omit `reset-gpios` and rely on POR)
+- SDA = P0.17, SCL = P0.20 (pro_micro_i2c defaults)
+- I2C = 100 kHz (I2C_BITRATE_STANDARD)
+- I2C address = 0x74
 
-Byte-level analysis of the committed factory firmware (`firmware/original-backup/RIGHT.UF2`)
-located the compiled `iqs5xx_config` struct at flash offset `0x60ae8`:
+**Layout**:
+- `config/corne.keymap` — shared keymap, kscan pin overrides
+- `config/corne.conf` — shared Kconfig (ZMK_POINTING, CONFIG_I2C, debug logs)
+- `config/corne_right.overlay` — right-half overlay: I2C bus + tps43 device + `zmk,input-split@0` source with `device = <&tps43>`
+- `config/corne_left.overlay` — left-half overlay: `zmk,input-split@0` proxy (same reg) + `zmk,input-listener` bound to proxy + `zmk,input-processor-transform` with `INPUT_TRANSFORM_X_INVERT` (X-axis correction)
 
-| Role | Pin | Polarity | Evidence |
-|---|---|---|---|
-| RDY | **P1.02** | `GPIO_ACTIVE_HIGH` | gpio_dt_spec at `0x60b40`, `{port=P1, pin=2}` |
-| NRST | **P1.01** | `GPIO_ACTIVE_LOW` | gpio_dt_spec at `0x60b48`, `{port=P1, pin=1}` |
-| SDA | **P0.17** | — | `NRF_PSEL(TWIM_SDA, 0, 17) = 0x000c0011` at `0x60b18` (fun=12=SDA) |
-| SCL | **P0.20** | — | `NRF_PSEL(TWIM_SCL, 0, 20) = 0x000b0014` at `0x60b1c` (fun=11=SCL) |
-| I2C freq | 100 kHz | — | `nrf_twim_frequency=0x01980000` at `0x60af8` |
-| I2C addr | 0x74 | — | node name `iqs5xx@74` |
+---
 
-P1.01 and P1.02 appear only in RIGHT.UF2, not LEFT.UF2 — confirming they are
-right-half touchpad pins.
+## How we got here — four stacked root causes
 
-## Stacked Root Cause
+All four had to be right simultaneously. Each "cause" in isolation looked like a plausible diagnosis but didn't fix the problem alone.
 
-Previous debug focused only on cause #1. FOUR causes had to be fixed together.
+### Cause 1: Pin swap guess (commit `4212e32`)
 
-**Cause 1 — Pins were inverted by commit `4212e32`.**
-That commit was a well-intentioned guess that happened to be wrong. Restoring
-RDY → P1.02 is mandatory.
+An earlier debug session swapped RDY/NRST pin assignments relative to factory based on a guess. Byte-level analysis of factory `RIGHT.UF2` (`iqs5xx_config` struct at flash offset 0x60ae8) gave definitive pins: RDY=P1.02, NRST=P1.01. Restored (commit `83542bf`).
 
-**Cause 2 — AYM1607 driver's post-reset race.**
-`drivers/input/iqs5xx.c` in the AYM1607 module does, when `reset-gpios` is
-wired: pulse reset 1ms → release → `k_msleep(10)` → configure RDY interrupt →
-`k_msleep(100)` → call `iqs5xx_setup_device()`. Total post-reset wait is ~111ms.
-IQS572 datasheet specifies ≥150ms for ATI, and real chips can take up to 500ms.
-Setup register writes hit a still-closed communication window, all NACK, init
-returns `-EIO`. This is why commit `61bd27b` — which had the correct pins —
-*still* failed.
+### Cause 2: AYM1607 driver post-reset race
 
-For comparison, the stelmakhdigital TPS43-specific driver waits 610ms after
-reset release. AYM1607 is too aggressive.
+AYM1607's `iqs5xx_init` does: pulse reset 1 ms → `k_msleep(10)` → configure RDY → `k_msleep(100)` → `iqs5xx_setup_device`. Total ~111 ms post-reset. IQS572 datasheet specifies ≥150 ms for ATI, up to 500 ms in practice. When `reset-gpios` is wired, setup writes fire into a still-closed comm window — all NACK, init returns `-EIO`.
 
-**Cause 4 — Shield overlay files in wrong directory (silently ignored).**
-Our `zephyr/module.yml` sets `board_root: .`, so Zephyr looks for shield
-overlays at `./boards/shields/<shield>/` at the repo root — NOT at
-`./config/boards/shields/<shield>/`. Overlays placed under `config/boards/`
-are silently dropped by the build. Every prior build never compiled the
-AYM1607 driver (zero mentions of `iqs5xx`/`azoteq` in CI build logs). Only
-the `corne.keymap` changes took effect because keymap auto-loads from
-`$ZMK_CONFIG` (`config/`), which is why the keyboard matrix kept working
-even though the touchpad silently did nothing. Fix: `git mv config/boards/
-shields/corne/ boards/shields/corne/`. ZMK user-config template confirms
-this layout.
+Workaround: **omit `reset-gpios`**. The chip uses its natural POR (completed long before Zephyr driver init). 100 ms blind sleep is plenty when the chip has been powered for seconds already. Committed at `83542bf`.
 
-**Cause 3 — Missing `zmk,input-split` forwarding (central/peripheral bridge).**
-ZMK split keyboards isolate input devices to the half they're physically wired to.
-Our touchpad is on the peripheral (right), but HID reports come out of the
-central's (left) USB. Without a pair of `zmk,input-split` nodes — a source on
-the peripheral that forwards events over BLE, and a proxy on the central that
-re-emits them — the touchpad could be working perfectly and the host would
-never see a single event. The `zmk,input-listener` alone (our previous config)
-is NOT enough for split setups. This is confirmed from `app/src/pointing/input_split.c`
-in the ZMK source and cross-validated in `EyalYe/zmk-config` (a working Corne
-+ TPS43 build). Pattern applied:
-- `corne_right.overlay`: `zmk,input-split` with `device = <&tps43>`, `reg = <0>`.
-- `corne_left.overlay`: `zmk,input-split` proxy with matching `reg = <0>`, no
-  `device`, plus the `zmk,input-listener` bound to the proxy.
+### Cause 3: Missing `zmk,input-split` forwarding
 
-## Current State (Phase A + split-input fix)
+ZMK split keyboards isolate input devices to the physical half they're wired to. Touchpad lives on the peripheral (right); HID reports must come out of the central's (left) USB. Without `zmk,input-split` source + proxy bridging the two over BLE, peripheral touchpad events never reach the host. The shared-keymap `zmk,input-listener` pattern alone is insufficient for split. Added `split_inputs/tps43_split@0` on both halves (commit `5b4ea5d`). Confirmed against ZMK source `app/src/pointing/input_split.c` and `EyalYe/zmk-config`'s Corne+TPS43 config.
 
-Split-shield layout:
+### Cause 4: Shield overlays in wrong directory (THE actual blocker)
 
-- `config/boards/shields/corne/corne_right.overlay` — I2C bus, TPS43 device,
-  `zmk,input-split` source (forwards events to central over BLE).
-- `config/boards/shields/corne/corne_left.overlay` — `zmk,input-split` proxy +
-  `zmk,input-listener` (consumes forwarded events, emits HID mouse).
-- `config/corne.keymap` — only kscan wiring + keymap. No touchpad nodes.
-- `config/boards/shields/corne/boards/nice_nano_v2.overlay` — empty (I2C now
-  lives on right-only).
-- `config/corne.conf` — unchanged (`CONFIG_ZMK_POINTING=y`, `CONFIG_I2C=y`,
-  debug log vars).
+Our repo's `zephyr/module.yml` sets `board_root: .`, so Zephyr *should* scan `./boards/shields/` at repo root. In practice — even after moving overlays there — Zephyr's shield lookup only found upstream ZMK's shield dir. Zero references to our workspace path appeared in CI build logs. The driver was never compiled; evidence: no `iqs5xx`/`azoteq` strings anywhere in the build log across every prior build attempt.
 
-## Testing Procedure
+**Fix:** move overlays to `config/<shield>.overlay` (commit `89c31ff`). This uses ZMK's documented `$ZMK_CONFIG` auto-load mechanism — Zephyr picks them up as a proper shield extension, no module registration needed. After this change, the CI log grep for `iqs5xx` went from 0 → 26 occurrences.
 
-1. Wait for GitHub Actions to build. Download `corne_right_debug.uf2`:
-   ```
-   gh run list --workflow build.yml --limit 1
-   gh run download <run-id> -n firmware
-   ```
-2. Plug right half via USB. Double-tap reset → `NICENANO` volume mounts.
-3. Copy UF2 to `/Volumes/NICENANO/`. Board reboots automatically.
-4. Identify the serial port: only the debug build emits text.
-   ```
-   # Two /dev/cu.usbmodem* ports will exist. Debug half emits [time] <lvl> lines.
-   cat /dev/cu.usbmodem2143101    # Ctrl-C after a second
-   cat /dev/cu.usbmodem2143201
-   ```
-5. Tail the debug port:
-   ```
-   screen /dev/cu.usbmodemXXXX 115200   # Ctrl-A K to exit
-   ```
-6. Touch the pad. Interpret per decision gates below.
+### Cause 5: X-axis inversion (final tweak)
 
-## Decision Gates
+Once the driver was compiling and the split forwarding was wired, cursor worked but X was inverted (finger left → cursor right). Y was correct. `flip-x;` at driver level did not produce the expected inversion despite:
+- Property name confirmed in `AYM1607/.../azoteq,iqs5xx-common.yaml` binding
+- Driver code maps DT prop → `IQS5XX_FLIP_X = BIT(0)` → register `0x0669 XY_CONFIG_0`
+- Same register + bit layout confirmed in stelmakhdigital driver + Linux kernel driver
 
-### ✅ Success signature
-- `iqs5xx: initialized` (or similar probe-success message) during boot
-- `input: ... rel_x=... rel_y=...` events when touching the pad
-- Cursor moves on macOS during touch
+Unclear why the driver write doesn't land (possibly `setup_device` fails on a preceding register write due to the I2C comm-window timing quirk — would take runtime debug to confirm). Moved inversion to ZMK's listener-level `zmk,input-processor-transform` with `INPUT_TRANSFORM_X_INVERT` — post-driver, authoritative, matches urob's and other known-working community configs. Fixed in commit `13fae34`.
 
-### 🟡 "0xEEEE" close-NACK only
-If logs show NACKs *only* on the `0xEEEE` write, that's the IQS5xx protocol's
-mandated communication-window-close. Normal. Ignore those specific NACKs.
+---
 
-### 🔴 Phase B1 — Patch AYM1607 driver timing
-If logs show sustained NACK loops on early setup register writes (e.g. at
-register `0x058F`, system config):
-- Fork `AYM1607/zmk-driver-azoteq-iqs5xx` into alliecatowo's GitHub.
-- Pin `config/west.yml` to the fork's branch.
-- In `drivers/input/iqs5xx.c` `iqs5xx_init`: replace `k_msleep(100)` with a poll
-  loop that waits up to 500ms for `gpio_pin_get_dt(&config->rdy_gpio) == 1`.
-- If you later want to add `reset-gpios` back, bump the `k_msleep(10)` after
-  reset release to `k_msleep(200)` as well.
+## Open / cosmetic: `Failed to read system info 0: -5`
 
-### 🔴 Phase B2 — Swap to stelmakhdigital driver (RECIPE)
-
-Purpose-built for TPS43. Datasheet-correct timing (10ms reset + 610ms ATI wait
-+ poll-until-SHOW_RESET before configure). `reg ` and bus unchanged; `zmk,input-split`
-unchanged.
-
-**1. `config/west.yml`** — replace the driver project:
-```yaml
-manifest:
-  defaults:
-    revision: v0.3
-  remotes:
-    - name: zmkfirmware
-      url-base: https://github.com/zmkfirmware
-    - name: stelmakhdigital
-      url-base: https://github.com/stelmakhdigital
-  projects:
-    - name: zmk
-      remote: zmkfirmware
-      import: app/west.yml
-    - name: zmk-driver-azoteq
-      remote: stelmakhdigital
-      revision: main
-  self:
-    path: config
+Every ~1 s while idle, the debug serial log shows:
+```
+<err> i2c_nrfx_twi: Error 0x0BAE0001 occurred for message 0
+<err> iqs5xx: Failed to read system info 0: -5
 ```
 
-**2. `config/boards/shields/corne/corne_right.overlay`** — swap compatible + property names,
-add NRST back (safe here — driver waits 610ms post-reset):
-```dts
-&pro_micro_i2c {
-    status = "okay";
-    clock-frequency = <I2C_BITRATE_STANDARD>;   /* or I2C_BITRATE_FAST; factory used STANDARD */
+**Decoded** (`0x0BAE0001` = `NRFX_ERROR_DRV_TWI_ERR_ANACK`, address NACK). IQS5xx protocol opens a comm window triggered by RDY, NACKs any I2C address byte outside that window. AYM1607's `iqs5xx_work_handler` fires on RDY rising edge and immediately reads `SYSTEM_INFO_0` (`0x000F`). If work-queue scheduling misses the window, the read NACKs. The Linux kernel iqs5xx driver handles this with a 10-retry loop + 200–300 µs between attempts — AYM1607 has no retry logic; it logs and drops the work item, waiting for the next RDY.
 
-    tps43: trackpad@74 {
-        compatible = "azoteq,tps43";             /* was azoteq,iqs5xx */
-        reg = <0x74>;
-        rdy-gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;
-        rst-gpios = <&gpio1 1 GPIO_ACTIVE_LOW>;  /* add back — property name is rst not reset */
-        single-tap;                              /* was one-finger-tap */
-        two-finger-tap;
-        press-and-hold;
-        scroll;
-        invert-scroll-y;                         /* was natural-scroll-y */
-    };
-};
+**Impact**: purely cosmetic. Touch works because most windows are caught, and the failed reads don't corrupt state.
 
-/* split_inputs block unchanged */
-```
+**Fix**: either patch AYM1607 to add retry logic, or migrate to stelmakhdigital's driver (which has proper retry + I2C window handling). Covered in Roadmap below.
 
-**3. `config/corne.conf`** — add driver Kconfig:
-```
-CONFIG_INPUT_TPS43=y
-```
+---
 
-**Property renames** (common gotcha):
-| AYM1607 | stelmakhdigital |
-|---|---|
-| `reset-gpios` | `rst-gpios` |
-| `one-finger-tap` | `single-tap` |
-| `natural-scroll-y` | `invert-scroll-y` |
+## Roadmap — planned improvements
 
-Emit codes (identical): `INPUT_REL_X/Y/WHEEL/HWHEEL`, `INPUT_BTN_0/1`. Our central
-`zmk,input-listener` consumes these unchanged.
+### R1. Migrate to `stelmakhdigital/zmk_driver_azoteq` (HIGH value)
 
-### 🟠 Phase B3 — Check P1.29 (possible touchpad power gate)
+**Why**: AYM1607 has zero power management. IQS572 idle current at ~227 µA vs `<1 µA` in suspend via `SYSTEM_CONTROL_1 (0x0432) bit 0`. stelmakhdigital's driver:
+- Full `ZMK_LISTENER` on `zmk_activity_state_changed` → calls `tps43_set_sleep(dev, true)` on IDLE/SLEEP, `false` on ACTIVE
+- `k_sem`-guarded I2C (no race between RDY handler and suspend)
+- First-transaction-after-suspend NACK handled correctly (dummy read + 200 ms settle)
+- 610 ms post-reset wait (datasheet-correct, no race like AYM1607's 10 ms)
+- Proper `0xEEEE` close-window handling
 
-Deep factory UF2 extract found a GPIO at **P1.29 with complex flags `0x0539`**
-(active-low + pull-up + additional config bits) that appears in the RIGHT half
-only. The researcher flagged it as "possibly EXT_POWER enable" — i.e. a 3V3 gate
-controlling power to the TPS43. ZMK's default `nice_nano_v2` EXT_POWER node
-targets **P0.13** (`ext_power: control-gpios = <&gpio0 13 GPIO_OPEN_DRAIN>`),
-which is Nice!Nano's on-board rail. But the AliExpress Corne PCB may have
-rerouted the touchpad's 3V3 to a separate, independently-switched rail on P1.29.
+**Expected uplift**: 3–8× peripheral-half idle battery life. Right-half standby time goes from ~3 days to ~2–3 weeks assuming typical usage.
 
-If that's the case, we never enable P1.29 in our build → the chip is
-**unpowered** → every I2C transaction NACKs, regardless of any other fix.
+**Migration diff**:
+- `config/west.yml`: swap project `zmk-driver-azoteq-iqs5xx` → `zmk_driver_azoteq` @ stelmakhdigital
+- `config/corne_right.overlay`:
+  - `compatible = "azoteq,iqs5xx"` → `compatible = "azoteq,tps43"`
+  - Rename: `reset-gpios` → `rst-gpios` (we'll add NRST back on P1.01 `GPIO_ACTIVE_LOW` since the driver handles reset timing correctly)
+  - Rename: `one-finger-tap` → `single-tap`
+  - Rename: `natural-scroll-y` → `invert-scroll-y`
+  - Add: `enable-power-management;`
+- `config/corne_right.conf` (new file): `CONFIG_INPUT_TPS43=y`
+- Keep split_inputs / zmk,input-split unchanged — same wiring works across drivers
+- Keep listener-level X-invert unchanged — still works post-driver
 
-**Symptoms that point to this:**
-- Flashed Phase A + split-input build, still every transaction NACKs
-- Logs show "device not found" or "no ACK" on `iqs5xx_setup_device`'s first
-  register write at `0x058F`, not partway through the sequence
+**UX gotcha to solve during migration**: stelmakhdigital disables the RDY interrupt during suspend. First touch after idle doesn't wake the driver — user must press a key first. Mitigations:
+1. Leave RDY interrupt enabled in idle and have work handler check suspend flag
+2. Add a `zmk,gpio-key-wakeup-trigger` on RDY for system-off deep wakeup
 
-**Fix to try:**
-Add a shield-level GPIO output that drives P1.29 active on boot. Simplest way —
-add to `config/boards/shields/corne/corne_right.overlay`:
-```dts
-/ {
-    tp_power: tp-power {
-        compatible = "zmk,ext-power-generic";
-        control-gpios = <&gpio1 29 GPIO_OPEN_DRAIN>;
-        init-delay-ms = <50>;
-    };
+### R2. Input-processors for pointing quality-of-life
 
-    chosen {
-        zmk,ext-power = &tp_power;
-    };
-};
-```
-And enable in `config/corne.conf`:
-```
-CONFIG_ZMK_EXT_POWER=y
-```
+Attaches to `tps43_listener` on the central. All applied post-driver.
 
-This overrides nice_nano_v2's default ext-power node to point at P1.29.
+- **Sensitivity scaler**: `&zip_xy_scaler <1 2>` on base = 0.5× speed globally (TPS43 raw is usually too fast). Add `&zip_scroll_scaler <1 2>` for scroll speed.
+- **Precision layer**: layer-override on listener with `&zip_xy_scaler <1 2>` + `process-next` — net 0.25× when held. For fine cursor work.
+- **Scroll-mode layer**: layer-override with `&zip_xy_to_scroll_mapper` — finger movement becomes scroll wheel.
+- **Natural-scroll toggle**: two layers with/without `INPUT_TRANSFORM_Y_INVERT` on a `zip_scroll_transform` node.
 
-**Caveat:** the flags `0x0539` are complex (not clean ACTIVE_HIGH/LOW), so
-polarity is not certain. If the touchpad still doesn't respond, try
-`GPIO_ACTIVE_LOW` as well. Worst case, short experimentally with
-`gpio-keys` / fixed-regulator bindings.
+Gotcha: ZMK issue #2967 — layer-0 overrides can bleed. Keep overrides on non-zero layer indices. See input-processors research for full recipe.
 
-### 🔴 Phase C — Hardware sanity (only if B1+B2+B3 all fail)
-- Multimeter the P2 header pinout (we assumed VCC/GND/SDA/SCL/RDY).
-- Scope SDA/SCL idle: should sit at 3.3V. Floating → pullups missing.
-- Re-flash `firmware/original-backup/RIGHT.UF2` to confirm hardware still works.
+### R3. Mouse-layer keybindings
 
-## Reference: Files You'll Touch
+Add a `mouse_layer` (layer 4) with:
+- `&mkp LCLK` / `&mkp MCLK` / `&mkp RCLK` on home row
+- `&msc SCRL_UP` / `&msc SCRL_DOWN` for keyboard-driven scroll
+- `&mo 5` → scroll-mode layer momentary
+- `&mo 6` → precision-mode layer momentary
+- Toggles (`&tog 4`, `&tog 5`, `&tog 6`) added to `bt_layer`
 
-- `config/corne.keymap` — touchpad devicetree node.
-- `config/boards/shields/corne/boards/nice_nano_v2.overlay` — I2C bus config.
-- `config/corne.conf` — Kconfig (I2C, pointing, logging).
-- `config/west.yml` — driver module pin (only for Phase B).
-- `build.yaml` — build variants (`corne_right_debug` is what we flash).
-- `tools/extract_pins.py` — UF2 pin extractor. Reusable.
-- `firmware/original-backup/{LEFT,RIGHT}.UF2` — factory ground truth / rollback.
+### R4. Sleep + battery config (small, high-leverage)
 
-## Reference: Driver Behavior Notes
+In `config/corne.conf`:
+- `CONFIG_ZMK_SLEEP=y` — enables 15-min deep sleep. ~20 µA vs ~1.5 mA awake-idle. **Single highest-impact battery config**.
+- `CONFIG_BT_BAS=n` — suppresses BAS notifications that wake macOS from display sleep (known ZMK issue #1273). Trade-off: macOS stops displaying the battery percentage.
+- `CONFIG_ZMK_BATTERY_REPORT_INTERVAL=120` — cut ADC polling in half.
 
-- AYM1607 `azoteq,iqs5xx`: configures `GPIO_INT_EDGE_RISING` on RDY, reads registers
-  in work handler triggered by RDY rising edge. Setup/init path is synchronous,
-  does NOT go through the work handler.
-- The `0xEEEE` close-window write is expected to NACK per IQS5xx protocol — don't
-  mistake for a real failure.
-- `reset-gpios` absent means driver skips its reset block entirely; clock relies on
-  natural power-on reset (fine, since board boot takes ≫150ms).
+In new `config/corne_left.conf` (central only):
+- `CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING=y` — central polls peripheral battery and fires ZMK events.
+
+### R5. Back to driver-level X-axis (curiosity)
+
+Allie's hypothesis: `flip-x` at driver level might have been working but the test on the pre-fix build only flashed the right half — even though that's architecturally sufficient for a driver-level invert. Worth an A/B test after migrating to stelmakhdigital (which has proper I2C retry so the `setup_device` path is more reliable). If driver-level flip-x works on stelmakhdigital's driver, the listener-level transform becomes redundant and can be dropped for cleanliness.
+
+---
+
+## Reference — files touched
+
+- `config/corne.keymap` — keymap + kscan only
+- `config/corne.conf` — shared Kconfig
+- `config/corne_right.overlay` — I2C + tps43 device + input-split source
+- `config/corne_left.overlay` — input-split proxy + listener + X-invert transform
+- `config/west.yml` — AYM1607 driver module
+- `build.yaml` — CI build matrix (4 targets)
+- `firmware/original-backup/{LEFT,RIGHT}.UF2` — factory firmware (ground-truth rollback)
+- `firmware/latest/dfu-flash.sh` — DFU-serial flash helper (MDM-friendly)
+- `tools/extract_pins.py` — UF2 pin-extraction utility
+
+## Reference — external
+
+- AYM1607 driver source + binding: github.com/AYM1607/zmk-driver-azoteq-iqs5xx @ main
+- stelmakhdigital driver source: github.com/stelmakhdigital/zmk_driver_azoteq @ main (migration target)
+- Linux kernel iqs5xx driver (reference for retry logic): `drivers/input/touchscreen/iqs5xx.c`
+- IQS5xx-B000 Setup and User Guide (Azoteq AZD087)
+- IQS572EV02 datasheet (power numbers)
+- ZMK user-config template: github.com/zmkfirmware/unified-zmk-config-template
+- ZMK input-split source: `app/src/pointing/input_split.c` @ v0.3
+- ZMK input-processors docs: zmk.dev/docs/keymaps/input-processors
