@@ -5,11 +5,7 @@
  * proxy (reg = <0> matches the right-half forwarder); peripheral input
  * events cross BLE, this proxy re-emits, the listener converts to HID.
  *
- * Base: X-invert only. Scroll and Precise modes are persistent-toggle
- * layers activated by `&tog` on the adjust layer — see corne.keymap
- * layers 4 and 5. The overrides below gate their input-processor swap
- * on those layers being active. (ZMK's stock mechanism: listener
- * overrides are layer-indexed.)
+ * Base transform: X-axis invert (physical pad mirrored vs chip default).
  */
 
 #include <input/processors.dtsi>
@@ -29,20 +25,6 @@
     tps43_listener: tps43_listener {
         compatible = "zmk,input-listener";
         device = <&tps43_split>;
-
-        /* Base: invert X (physical pad mirrored vs chip default). */
         input-processors = <&zip_xy_transform INPUT_TRANSFORM_X_INVERT>;
-
-        /* Scroll mode (keymap layer 4) — touchpad X/Y -> scroll wheel. */
-        scroller {
-            layers = <4>;
-            input-processors = <&zip_xy_to_scroll_mapper>;
-        };
-
-        /* Precision mode (keymap layer 5) — touchpad at 1/2 speed. */
-        precision {
-            layers = <5>;
-            input-processors = <&zip_xy_scaler 1 2>;
-        };
     };
 };

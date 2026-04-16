@@ -42,20 +42,11 @@
     };
 
     /*
-     * Layer indices — referenced by corne_left.overlay input-processor
-     * overrides. Keep in sync.
+     * Layer indices:
      *   0  default
-     *   1  lower
-     *   2  raise
-     *   3  adjust (BT + touchpad mode toggles; lower+raise held -> this)
-     *   4  scroll mode (touchpad X/Y -> scroll wheel; toggle via &tog 4)
-     *   5  precise mode (touchpad 1/2 speed;        toggle via &tog 5)
-     *
-     * Scroll + Precise layers are mode toggles, not typing layers — all
-     * keys are &trans so your base-layer typing keeps working. They exist
-     * purely so the listener's input-processor override has a layer to
-     * gate on. ZMK's stock mechanism doesn't support non-layer runtime
-     * processor switching; a custom behavior would be needed for that.
+     *   1  lower  (numbers + shift-num symbols)
+     *   2  raise  (F-keys + arrows + math symbols)
+     *   3  adjust (BT + studio unlock; lower+raise held -> this)
      *
      * Touchpad hardware + split input forwarding live in corne_right.overlay
      * and corne_left.overlay. Shared keymap must NOT reference &tps43.
@@ -114,39 +105,15 @@
             >;
         };
 
-        /* Adjust — BT controls + touchpad mode toggles. Accessed via
+        /* Adjust — BT controls + Studio unlock. Accessed via
          * Lower + Raise held together (conditional_layers above). */
         adjust_layer {
             display-name = "Adj/BT";
             bindings = <
-                &bt BT_CLR &bt BT_SEL 0 &bt BT_SEL 1 &bt BT_SEL 2 &bt BT_SEL 3 &bt BT_SEL 4   &trans  &trans  &trans  &trans &trans &trans
-                &trans     &trans       &trans       &trans       &trans       &trans             &tog 4  &tog 5  &trans  &trans &trans &trans
-                &trans     &trans       &trans       &trans       &trans       &out OUT_TOG       &trans  &trans  &trans  &trans &trans &trans
-                                                     &trans       &trans       &trans             &trans  &trans  &trans
-            >;
-        };
-
-        /* Scroll mode (toggled). Touchpad X/Y -> scroll wheel via the
-         * listener's input-processor override. All keys &trans so your
-         * normal layers still work while scroll mode is active. */
-        scroll_layer {
-            display-name = "Scroll";
-            bindings = <
-                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
-                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
-                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
-                                     &trans &trans &trans   &trans &trans &trans
-            >;
-        };
-
-        /* Precision mode (toggled). Touchpad scaled to 1/2 speed. */
-        precision_layer {
-            display-name = "Precise";
-            bindings = <
-                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
-                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
-                &trans &trans &trans &trans &trans &trans   &trans &trans &trans &trans &trans &trans
-                                     &trans &trans &trans   &trans &trans &trans
+                &bt BT_CLR &bt BT_SEL 0 &bt BT_SEL 1 &bt BT_SEL 2 &bt BT_SEL 3 &bt BT_SEL 4   &trans &trans &trans &trans &trans &studio_unlock
+                &trans     &trans       &trans       &trans       &trans       &trans             &trans &trans &trans &trans &trans &trans
+                &trans     &trans       &trans       &trans       &trans       &out OUT_TOG       &trans &trans &trans &trans &trans &trans
+                                                     &trans       &trans       &trans             &trans &trans &trans
             >;
         };
     };
