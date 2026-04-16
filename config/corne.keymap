@@ -98,7 +98,7 @@
          * │ Esc/` Q  W  E  R  T     │   Y  U  I  O  P   -_    │
          * │ Tab   A  S  D  F  G     │   H  J  K  L  ;   '     │
          * │ Sft   Z  X  C  V  B     │   N  M  ,  .  /   Ctrl  │
-         * ╰──────────╮ GUI Lw Spc   │   Ent Del Rse ╭─────────╯
+         * ╰──────────╮ Lw GUI Spc   │   Ent Bsp Rse ╭─────────╯
          */
         default_layer {
             display-name = "Base";
@@ -106,7 +106,7 @@
                 &esc_grv  &kp Q &kp W &kp E &kp R &kp T   &kp Y &kp U  &kp I     &kp O   &kp P    &kp MINUS
                 &kp TAB   &kp A &kp S &kp D &kp F &kp G   &kp H &kp J  &kp K     &kp L   &kp SEMI &kp SQT
                 &kp LSHFT &kp Z &kp X &kp C &kp V &kp B   &kp N &kp M  &kp COMMA &kp DOT &kp FSLH &kp RCTRL
-                            &lower_alt &kp LGUI &kp SPACE   &kp RET &kp DEL &mo 2
+                            &lower_alt &kp LGUI &kp SPACE   &kp RET &kp BSPC &mo 2
             >;
         };
 
