@@ -37,7 +37,8 @@
     tps43: iqs5xx@74 {
         compatible = "azoteq,iqs5xx";
         reg = <0x74>;
-        /* RDY and NRST pins omitted - let driver use polling mode */
+        rdy-gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;
+        /* reset-gpios removed - wrong pin may hold touchpad in reset */
         one-finger-tap;
         two-finger-tap;
         press-and-hold;
