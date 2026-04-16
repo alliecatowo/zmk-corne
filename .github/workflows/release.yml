@@ -32,6 +32,11 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Download firmware artifact
         uses: actions/download-artifact@v4
         with:
@@ -45,22 +50,7 @@ jobs:
           INPUT_TAG: ${{ github.event.inputs.tag }}
           INPUT_NAME: ${{ github.event.inputs.name }}
           HEAD_SHA: ${{ github.sha }}
-        run: |
-          if [ "$EVENT_NAME" = "push" ]; then
-            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-            echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          else
-            TAG="$INPUT_TAG"
-            if [ -z "$TAG" ]; then
-              TAG="v$(date -u +%Y.%m.%d-%H%M)"
-            fi
-            echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-            echo "name=${INPUT_NAME:-$TAG}" >> "$GITHUB_OUTPUT"
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag "$TAG" "$HEAD_SHA" || true
-            git push origin "$TAG" || true
-          fi
+        run: bash .github/scripts/derive-release-tag.sh
 
       - name: Create release
         uses: softprops/action-gh-release@v2
