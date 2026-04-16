@@ -33,7 +33,7 @@ right-half touchpad pins.
 
 ## Stacked Root Cause
 
-Previous debug focused only on cause #1. All three had to be fixed together.
+Previous debug focused only on cause #1. FOUR causes had to be fixed together.
 
 **Cause 1 — Pins were inverted by commit `4212e32`.**
 That commit was a well-intentioned guess that happened to be wrong. Restoring
@@ -50,6 +50,18 @@ returns `-EIO`. This is why commit `61bd27b` — which had the correct pins —
 
 For comparison, the stelmakhdigital TPS43-specific driver waits 610ms after
 reset release. AYM1607 is too aggressive.
+
+**Cause 4 — Shield overlay files in wrong directory (silently ignored).**
+Our `zephyr/module.yml` sets `board_root: .`, so Zephyr looks for shield
+overlays at `./boards/shields/<shield>/` at the repo root — NOT at
+`./config/boards/shields/<shield>/`. Overlays placed under `config/boards/`
+are silently dropped by the build. Every prior build never compiled the
+AYM1607 driver (zero mentions of `iqs5xx`/`azoteq` in CI build logs). Only
+the `corne.keymap` changes took effect because keymap auto-loads from
+`$ZMK_CONFIG` (`config/`), which is why the keyboard matrix kept working
+even though the touchpad silently did nothing. Fix: `git mv config/boards/
+shields/corne/ boards/shields/corne/`. ZMK user-config template confirms
+this layout.
 
 **Cause 3 — Missing `zmk,input-split` forwarding (central/peripheral bridge).**
 ZMK split keyboards isolate input devices to the half they're physically wired to.
