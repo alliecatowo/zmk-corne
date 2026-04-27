@@ -79,14 +79,15 @@
             >;
         };
 
-        /* Lower — numbers + shift-number symbols. Held by left thumb.
-         * Arrows LIVE ON RAISE (Lily pattern, right-thumb hold). */
+        /* Lower — numbers + shift-number symbols + mouse clicks. Held by
+         * left thumb so right hand stays on the touchpad. Mouse clicks
+         * (LCLK/MCLK/RCLK) on left-hand C/V/B for click-while-pointing. */
         lower_layer {
             display-name = "Lower";
             bindings = <
-                &kp GRAVE &kp N1   &kp N2 &kp N3   &kp N4   &kp N5      &kp N6   &kp N7   &kp N8   &kp N9   &kp N0    &kp BSPC
-                &trans    &kp EXCL &kp AT &kp HASH &kp DLLR &kp PRCNT   &kp CARET &kp AMPS &kp STAR &kp LPAR &kp RPAR  &trans
-                &trans    &trans   &trans &trans   &trans   &trans      &trans    &trans   &trans   &trans   &trans    &trans
+                &kp GRAVE &kp N1   &kp N2 &kp N3    &kp N4    &kp N5      &kp N6    &kp N7   &kp N8   &kp N9   &kp N0    &kp BSPC
+                &trans    &kp EXCL &kp AT &kp HASH  &kp DLLR  &kp PRCNT   &kp CARET &kp AMPS &kp STAR &kp LPAR &kp RPAR  &trans
+                &trans    &trans   &trans &mkp LCLK &mkp MCLK &mkp RCLK   &trans    &trans   &trans   &trans   &trans    &trans
                                        &trans &trans &trans   &trans &trans   &trans
             >;
         };
@@ -105,17 +106,18 @@
             >;
         };
 
-        /* Adjust — BT controls + output toggle + Studio unlock + mouse clicks.
+        /* Adjust — BT controls + output toggle + Studio unlock.
          * Lower + Raise held together (via conditional_layers above) to
          * access. &out OUT_TOG flips USB <-> BLE HID output (use to test
-         * BT pairing while a USB cable is connected). LCLK/MCLK/RCLK on
-         * C/V/B for hand-on-keyboard clicking. */
+         * BT pairing while a USB cable is connected). Mouse clicks live
+         * on Lower (C/V/B) so they're accessible while right hand is on
+         * the touchpad — no need for Lower+Raise dance to click. */
         adjust_layer {
             display-name = "Adj/BT";
             bindings = <
                 &bt BT_CLR &bt BT_SEL 0 &bt BT_SEL 1 &bt BT_SEL 2 &bt BT_SEL 3 &bt BT_SEL 4   &trans &trans &trans &trans &trans       &studio_unlock
                 &trans     &trans       &trans       &trans       &trans       &trans             &trans &trans &trans &trans &out OUT_TOG &trans
-                &trans     &trans       &trans       &mkp LCLK    &mkp MCLK    &mkp RCLK         &trans &trans &trans &trans &trans       &trans
+                &trans     &trans       &trans       &trans       &trans       &trans             &trans &trans &trans &trans &trans       &trans
                                                      &trans       &trans       &trans             &trans &trans &trans
             >;
         };
