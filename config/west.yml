@@ -17,6 +17,6 @@ manifest:
     # vulnerable to flip-x not landing after fast unplug/replug. See issue #1.
     - name: zmk_driver_azoteq
       remote: stelmakhdigital
-      revision: main
+      revision: master
   self:
     path: config
