@@ -5,11 +5,10 @@
  * proxy (reg = <0> matches the right-half forwarder); peripheral input
  * events cross BLE, this proxy re-emits, the listener converts to HID.
  *
- * Base transform: X-axis invert (physical pad mirrored vs chip default).
+ * Axis correction now lives at the driver/chip level (flip-x property on
+ * the tps43 node in corne_right.overlay) — chip emits already-correct
+ * events. The listener is a pure pass-through; no input-processors.
  */
-
-#include <input/processors.dtsi>
-#include <dt-bindings/zmk/input_transform.h>
 
 / {
     split_inputs {
@@ -25,6 +24,5 @@
     tps43_listener: tps43_listener {
         compatible = "zmk,input-listener";
         device = <&tps43_split>;
-        input-processors = <&zip_xy_transform INPUT_TRANSFORM_X_INVERT>;
     };
 };

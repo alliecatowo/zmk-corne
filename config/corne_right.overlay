@@ -25,12 +25,14 @@
         press-and-hold;
         scroll;
         natural-scroll-y;
-        /* X-axis inversion is handled on the central via listener-level
-         * zmk,input-processor-transform (see corne_left.overlay). Driver-level
-         * flip-x did not take effect in testing despite being the documented
-         * property — moving the transform to post-driver ZMK code eliminates
-         * the ambiguity and lines us up for the sensitivity/scroll/precision
-         * layers (input-processors) being added later. */
+        /* X-axis inversion at the chip level: writes IQS5XX_FLIP_X (BIT 0)
+         * to register 0x0669 (XY_CONFIG_0) during iqs5xx_setup_device. This
+         * lets the chip emit already-flipped events instead of doing a
+         * per-event transform on the central via input-processor-transform.
+         * Previously moved to listener level on the assumption it didn't
+         * work — but that test predated the chip-state-wedge / unplug-replug
+         * discovery. Re-testing with the proper power-cycle procedure. */
+        flip-x;
     };
 };
 
