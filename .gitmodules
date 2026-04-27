@@ -1,0 +1,3 @@
+[submodule "modules/zmk-driver-azoteq-iqs5xx"]
+	path = modules/zmk-driver-azoteq-iqs5xx
+	url = https://github.com/alliecatowo/zmk-driver-azoteq-iqs5xx.git
