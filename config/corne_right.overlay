@@ -17,21 +17,20 @@
         compatible = "azoteq,iqs5xx";
         reg = <0x74>;
         /* Pins from factory RIGHT.UF2 (flash offset 0x60ae8).
-         * reset-gpios intentionally omitted — AYM1607's 10ms post-reset
-         * wait races the IQS572's ~150ms ATI time, so we rely on POR. */
+         * reset-gpios is now wired up — our AYM1607 fork bumps the
+         * post-NRST-release wait from 10ms to 250ms (covers the chip's
+         * ~150ms ATI period) and adds I2C retry. Combination resolves
+         * the fast-power-cycle chip-state-wedge symptom that originally
+         * pushed us to omit reset-gpios. */
         rdy-gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;
+        reset-gpios = <&gpio1 1 GPIO_ACTIVE_LOW>;
         one-finger-tap;
         two-finger-tap;
         press-and-hold;
         scroll;
         natural-scroll-y;
         /* X-axis inversion at the chip level: writes IQS5XX_FLIP_X (BIT 0)
-         * to register 0x0669 (XY_CONFIG_0) during iqs5xx_setup_device. This
-         * lets the chip emit already-flipped events instead of doing a
-         * per-event transform on the central via input-processor-transform.
-         * Previously moved to listener level on the assumption it didn't
-         * work — but that test predated the chip-state-wedge / unplug-replug
-         * discovery. Re-testing with the proper power-cycle procedure. */
+         * to register 0x0669 (XY_CONFIG_0) during iqs5xx_setup_device. */
         flip-x;
     };
 };
