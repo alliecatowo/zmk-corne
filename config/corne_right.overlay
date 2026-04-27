@@ -39,6 +39,14 @@
         scroll;
         invert-scroll-y;
         invert-x;
+
+        /* Filter tuning: default 0x0F = IIR + MAV + ALP + FIXED IIR coefficient,
+         * which over-smooths small slow movements ("blocky" feel — small
+         * deltas snap to filter-quantized increments). 0x0B drops the
+         * FIXED IIR bit, switching to dynamic IIR that adapts to movement
+         * speed. Heavy smoothing only at high speed; light at low. Per
+         * binding docs: "good balance of stability and responsiveness." */
+        filter-settings = <0x0B>;
     };
 };
 
