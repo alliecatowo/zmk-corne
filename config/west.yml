@@ -4,14 +4,19 @@ manifest:
   remotes:
     - name: zmkfirmware
       url-base: https://github.com/zmkfirmware
-    - name: AYM1607
-      url-base: https://github.com/AYM1607
+    - name: stelmakhdigital
+      url-base: https://github.com/stelmakhdigital
   projects:
     - name: zmk
       remote: zmkfirmware
       import: app/west.yml
-    - name: zmk-driver-azoteq-iqs5xx
-      remote: AYM1607
+    # TPS43-specific driver: 610ms post-reset wait, k_sem-guarded I2C, NACK-aware
+    # retry on wake, full PM via ZMK_LISTENER on activity_state_changed, proper
+    # SETUP_COMPLETE handshake. Migrated from AYM1607's generic iqs5xx driver
+    # which had no I2C retry, no PM, no chip-state-clear-on-init — leaving us
+    # vulnerable to flip-x not landing after fast unplug/replug. See issue #1.
+    - name: zmk_driver_azoteq
+      remote: stelmakhdigital
       revision: main
   self:
     path: config

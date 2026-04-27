@@ -1,10 +1,21 @@
 /*
  * Right half (peripheral) — touchpad hardware + split input forwarder.
  *
- * The `tps43_split` node of `zmk,input-split` intercepts raw input events
- * from the IQS5xx driver and forwards them over BLE to the central. The
- * central has a matching proxy node (same reg=0) that re-emits them for
- * its input-listener to convert to HID mouse reports.
+ * Driver: stelmakhdigital/zmk_driver_azoteq (compatible = "azoteq,tps43").
+ * Per-property semantics differ from AYM1607's generic iqs5xx driver:
+ *   one-finger-tap   -> single-tap
+ *   natural-scroll-y -> invert-scroll-y
+ *   flip-x           -> invert-x
+ *   reset-gpios polarity is GPIO_ACTIVE_HIGH (not LOW) — driver code drives
+ *     the pin low with set_dt(0), so logical-0 must map to physical-low.
+ *
+ * NRST is wired back: stelmakhdigital handles the chip's 150ms ATI requirement
+ * (610ms blind sleep after release), so the AYM1607-era reset race doesn't apply.
+ *
+ * `enable-power-management` intentionally omitted: gates the chip's idle
+ * suspend (<1uA), but stelmakhdigital disables the RDY interrupt during
+ * suspend so first-touch-after-idle is swallowed. Acceptable on battery
+ * where power matters; annoying on USB. Uncomment when a battery's wired.
  */
 
 #include <zephyr/dt-bindings/i2c/i2c.h>
@@ -13,26 +24,21 @@
     status = "okay";
     clock-frequency = <I2C_BITRATE_STANDARD>;   /* 100kHz, matches factory */
 
-    tps43: iqs5xx@74 {
-        compatible = "azoteq,iqs5xx";
+    tps43: trackpad@74 {
+        compatible = "azoteq,tps43";
         reg = <0x74>;
-        /* Pins from factory RIGHT.UF2 (flash offset 0x60ae8).
-         * reset-gpios intentionally omitted — AYM1607's 10ms post-reset
-         * wait races the IQS572's ~150ms ATI time, so we rely on POR. */
+        status = "okay";
+
+        /* Pins from factory RIGHT.UF2 extraction (flash offset 0x60ae8). */
         rdy-gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;
-        one-finger-tap;
+        rst-gpios = <&gpio1 1 GPIO_ACTIVE_HIGH>;
+
+        single-tap;
         two-finger-tap;
         press-and-hold;
         scroll;
-        natural-scroll-y;
-        /* X-axis inversion at the chip level: writes IQS5XX_FLIP_X (BIT 0)
-         * to register 0x0669 (XY_CONFIG_0) during iqs5xx_setup_device. This
-         * lets the chip emit already-flipped events instead of doing a
-         * per-event transform on the central via input-processor-transform.
-         * Previously moved to listener level on the assumption it didn't
-         * work — but that test predated the chip-state-wedge / unplug-replug
-         * discovery. Re-testing with the proper power-cycle procedure. */
-        flip-x;
+        invert-scroll-y;
+        invert-x;
     };
 };
 
