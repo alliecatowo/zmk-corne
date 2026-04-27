@@ -105,14 +105,16 @@
             >;
         };
 
-        /* Adjust — BT controls + Studio unlock. Accessed via
-         * Lower + Raise held together (conditional_layers above). */
+        /* Adjust — BT controls + Studio unlock + mouse clicks.
+         * Lower + Raise held together (via conditional_layers above)
+         * to access. Mouse clicks on CVB: &mkp LCLK MCLK RCLK so you
+         * can click without lifting hands to the touchpad. */
         adjust_layer {
             display-name = "Adj/BT";
             bindings = <
                 &bt BT_CLR &bt BT_SEL 0 &bt BT_SEL 1 &bt BT_SEL 2 &bt BT_SEL 3 &bt BT_SEL 4   &trans &trans &trans &trans &trans &studio_unlock
                 &trans     &trans       &trans       &trans       &trans       &trans             &trans &trans &trans &trans &trans &trans
-                &trans     &trans       &trans       &trans       &trans       &out OUT_TOG       &trans &trans &trans &trans &trans &trans
+                &trans     &trans       &trans       &mkp LCLK    &mkp MCLK    &mkp RCLK         &trans &trans &trans &trans &trans &trans
                                                      &trans       &trans       &trans             &trans &trans &trans
             >;
         };
