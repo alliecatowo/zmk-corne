@@ -27,33 +27,7 @@
         one-finger-tap;
         two-finger-tap;
         press-and-hold;
-        /* Default is 250ms. Bump to 500ms — driver default fires too fast,
-         * single taps were sometimes interpreted as the start of a hold.
-         * Total hold threshold = chip tap-time (~150ms) + this value. */
-        press-and-hold-time = <500>;
         scroll;
-
-        /* Tuning for smooth slow-motion tracking — addresses the
-         * "slow finger movement produces sudden jumps" symptom.
-         *
-         * stationary-threshold: chip suppresses motion below this many
-         * pixels per sample, accumulating until threshold trips. Default
-         * 5 is aggressive — slow drags get held back, then dumped as a
-         * jump. Drop to 1 (effectively off) so each real sub-pixel of
-         * motion gets reported.
-         *
-         * bottom-beta: IIR filter strength at slow speeds. Counter-intuitive
-         * scale — LOWER value = MORE filtering = laggier. Default 5 is on
-         * the heavy-filter end. Raise to 20 for less smoothing-induced lag,
-         * still well clear of jitter at the responsive (255) end.
-         *
-         * report-rate-active-ms: chip's polling cadence in active mode.
-         * Default 10 (100Hz). Drop to 7 (~143Hz) — work handler has plenty
-         * of headroom after the burst-read patch (no RR_MISSED in logs at
-         * 100Hz), so faster reports = smaller per-sample deltas. */
-        stationary-threshold = <1>;
-        bottom-beta = <20>;
-        report-rate-active-ms = <7>;
         natural-scroll-y;
         /* X-axis inversion at the chip level: writes IQS5XX_FLIP_X (BIT 0)
          * to register 0x0669 (XY_CONFIG_0) during iqs5xx_setup_device. */
