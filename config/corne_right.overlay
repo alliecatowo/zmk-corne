@@ -11,27 +11,52 @@
 
 &pro_micro_i2c {
     status = "okay";
-    clock-frequency = <I2C_BITRATE_STANDARD>;   /* 100kHz, matches factory */
+    clock-frequency = <I2C_BITRATE_FAST>;       /* 400kHz — chip supports Fast Mode; cuts per-event I2C time ~4x to reduce work-queue saturation */
 
     tps43: iqs5xx@74 {
         compatible = "azoteq,iqs5xx";
         reg = <0x74>;
         /* Pins from factory RIGHT.UF2 (flash offset 0x60ae8).
-         * reset-gpios intentionally omitted — AYM1607's 10ms post-reset
-         * wait races the IQS572's ~150ms ATI time, so we rely on POR. */
+         * reset-gpios is now wired up — our AYM1607 fork bumps the
+         * post-NRST-release wait from 10ms to 250ms (covers the chip's
+         * ~150ms ATI period) and adds I2C retry. Combination resolves
+         * the fast-power-cycle chip-state-wedge symptom that originally
+         * pushed us to omit reset-gpios. */
         rdy-gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;
+        reset-gpios = <&gpio1 1 GPIO_ACTIVE_LOW>;
         one-finger-tap;
         two-finger-tap;
         press-and-hold;
+        /* Default is 250ms. Bump to 500ms — driver default fires too fast,
+         * single taps were sometimes interpreted as the start of a hold.
+         * Total hold threshold = chip tap-time (~150ms) + this value. */
+        press-and-hold-time = <500>;
         scroll;
+
+        /* Tuning for smooth slow-motion tracking — addresses the
+         * "slow finger movement produces sudden jumps" symptom.
+         *
+         * stationary-threshold: chip suppresses motion below this many
+         * pixels per sample, accumulating until threshold trips. Default
+         * 5 is aggressive — slow drags get held back, then dumped as a
+         * jump. Drop to 1 (effectively off) so each real sub-pixel of
+         * motion gets reported.
+         *
+         * bottom-beta: IIR filter strength at slow speeds. Counter-intuitive
+         * scale — LOWER value = MORE filtering = laggier. Default 5 is on
+         * the heavy-filter end. Raise to 20 for less smoothing-induced lag,
+         * still well clear of jitter at the responsive (255) end.
+         *
+         * report-rate-active-ms: chip's polling cadence in active mode.
+         * Default 10 (100Hz). Drop to 7 (~143Hz) — work handler has plenty
+         * of headroom after the burst-read patch (no RR_MISSED in logs at
+         * 100Hz), so faster reports = smaller per-sample deltas. */
+        stationary-threshold = <1>;
+        bottom-beta = <20>;
+        report-rate-active-ms = <7>;
         natural-scroll-y;
         /* X-axis inversion at the chip level: writes IQS5XX_FLIP_X (BIT 0)
-         * to register 0x0669 (XY_CONFIG_0) during iqs5xx_setup_device. This
-         * lets the chip emit already-flipped events instead of doing a
-         * per-event transform on the central via input-processor-transform.
-         * Previously moved to listener level on the assumption it didn't
-         * work — but that test predated the chip-state-wedge / unplug-replug
-         * discovery. Re-testing with the proper power-cycle procedure. */
+         * to register 0x0669 (XY_CONFIG_0) during iqs5xx_setup_device. */
         flip-x;
     };
 };

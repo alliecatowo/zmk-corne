@@ -4,14 +4,24 @@ manifest:
   remotes:
     - name: zmkfirmware
       url-base: https://github.com/zmkfirmware
-    - name: AYM1607
-      url-base: https://github.com/AYM1607
+    - name: alliecatowo
+      url-base: https://github.com/alliecatowo
   projects:
     - name: zmk
       remote: zmkfirmware
       import: app/west.yml
+    # Fork of AYM1607/zmk-driver-azoteq-iqs5xx with one fix: write
+    # SYSTEM_CONFIG_0 = 0 at the start of iqs5xx_setup_device to clear
+    # SETUP_COMPLETE before config writes. Resolves the chip-state-wedge
+    # symptom where flip-x silently doesn't land after a fast power cycle.
+    # See alliecatowo/zmk-corne#1 + alliecatowo/zmk-driver-azoteq-iqs5xx
+    # branch fix/clear-setup-complete-on-init.
+    #
+    # Source also vendored as a git submodule at
+    # modules/zmk-driver-azoteq-iqs5xx/ for in-tree editing convenience —
+    # CI uses this URL+revision, not the submodule path.
     - name: zmk-driver-azoteq-iqs5xx
-      remote: AYM1607
-      revision: main
+      remote: alliecatowo
+      revision: fix/clear-setup-complete-on-init
   self:
     path: config
