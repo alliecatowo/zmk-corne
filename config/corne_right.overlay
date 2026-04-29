@@ -32,6 +32,12 @@
         /* X-axis inversion at the chip level: writes IQS5XX_FLIP_X (BIT 0)
          * to register 0x0669 (XY_CONFIG_0) during iqs5xx_setup_device. */
         flip-x;
+
+        /* Incremental resolution bump from chip's NVD default of 1024×1024
+         * (1:1 ratio per diagnostic readings). Try 1.25× first; if chip
+         * post-read shows it stuck and feel is good, try 1536/1792. */
+        x-resolution = <1280>;
+        y-resolution = <1280>;
     };
 };
 
