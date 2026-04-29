@@ -22,6 +22,6 @@ manifest:
     # CI uses this URL+revision, not the submodule path.
     - name: zmk-driver-azoteq-iqs5xx
       remote: alliecatowo
-      revision: fix/clear-setup-complete-on-init
+      revision: feat/world-class-feel-tier0
   self:
     path: config
