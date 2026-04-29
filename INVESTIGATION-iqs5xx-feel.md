@@ -158,3 +158,42 @@ When the board is back: implement Tier 0, build, flash. ~30 lines of C, ~3 DT pr
 If feel matches Lily58 = ship Tier 0 to main, close investigation, the world is good.
 If feel still has slow-drag jitter = move to Tier 1 with explicit dynamic-IIR tuning.
 If even Tier 1 doesn't satisfy = consider Tier 2 architectural changes, but probably not worth it for marginal gains.
+
+---
+
+## Implementation log — 2026-04-28 evening session
+
+### Tier 0 flashed and tested
+
+Driver fork `3b7448c` + parent `c5778b9` — branch `feat/world-class-feel-tier0`.
+
+**Allie's verdict after flash + replug:**
+- Slow-drag jitter mostly resolved.
+- BUT: *"feels like it just doesn't have the smooth subpixel movement down to a T... not really like jitter, like DPI in a way, like the minutest of movements isn't picking up. It's like it's just a little not sensitive, so once it moves it moves in blocks."*
+- Lily58 (holykeebs) is *"more sensitive AND smoother simultaneously."*
+
+That combined "more sensitive AND smoother" rules out filter as the remaining cause. Points to **chip output resolution** — `X_RESOLUTION` (`0x066E`) / `Y_RESOLUTION` (`0x0670`). Lower resolution = chunkier integer REL deltas after the chip rounds its internal 256-points-between-electrodes precision before emit. Higher resolution preserves more sub-electrode precision.
+
+**Holykeebs writes these at init** via `azoteq_iqs5xx_setup_resolution()` to chip max (2048×1792 for TPS43). Linux reads them but doesn't override. **Our driver wrote nothing.** Chip used whatever NVD had — given the symptom, plausibly less than max.
+
+### Tier 1 — X/Y resolution explicit write
+
+Driver fork `b8e9702` (parent `5529482`).
+
+Adds `IQS5XX_X_RESOLUTION = 0x066E`, `IQS5XX_Y_RESOLUTION = 0x0670`. `setup_device` writes both when DT props non-zero. New DT properties `x-resolution` (default 2048) and `y-resolution` (default 1792). Setting either to 0 leaves chip at NVD default.
+
+### Tier 1 read-back diagnostic
+
+Driver fork `a06b2d4` (parent `769bcb7`).
+
+`LOG_INF` reads `0x066E` + `0x0670` immediately before driver overwrites them. Logs as `Chip NVD resolution: X=<n> Y=<n>`. Visible in USB serial debug build only.
+
+Confirms or refutes the hypothesis empirically:
+- NVD < 2048×1792 → our resolution write was the cause of any feel improvement.
+- NVD = 2048×1792 already → resolution wasn't the bottleneck, look elsewhere.
+
+### What's still open
+
+- **Runtime resolution change** — plumbing exists, no UX. Out of scope this session.
+- **Dynamic IIR speed thresholds** (`0x0638` LOWER_SPEED, `0x0639-0x063A` UPPER_SPEED) — datasheet says these are in pixels-per-cycle of the *configured* resolution, so only tunable cleanly after resolution is locked. Tier 2 territory.
+- **REL → ABS coordinate migration** like Linux — read absolute centroids, compute deltas in software at higher precision than chip-side integer rounding. Significant refactor. Tier 3.
