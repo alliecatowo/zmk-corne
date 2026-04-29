@@ -33,11 +33,15 @@
          * to register 0x0669 (XY_CONFIG_0) during iqs5xx_setup_device. */
         flip-x;
 
-        /* Incremental resolution bump from chip's NVD default of 1024×1024
-         * (1:1 ratio per diagnostic readings). Try 1.25× first; if chip
-         * post-read shows it stuck and feel is good, try 1536/1792. */
+        /* Incremental resolution bump in chip-die-native 8:7 ratio
+         * (IQS572 = 9 Rx × 8 Tx → 2048 × 1792 max → 8:7). Bump 1.25×
+         * first; if chip accepts and feel is good, ladder up:
+         *   1280 × 1120  (this attempt)
+         *   1536 × 1344
+         *   1792 × 1568
+         *   2048 × 1792  (chip die max) */
         x-resolution = <1280>;
-        y-resolution = <1280>;
+        y-resolution = <1120>;
     };
 };
 
