@@ -32,6 +32,12 @@
         /* X-axis inversion at the chip level: writes IQS5XX_FLIP_X (BIT 0)
          * to register 0x0669 (XY_CONFIG_0) during iqs5xx_setup_device. */
         flip-x;
+
+        /* 1.5× resolution bump from chip's NVD 1024×1024 baseline.
+         * Diagnostic burst-read after these writes will tell us whether
+         * the chip accepted the values or clamped them. */
+        x-resolution = <1536>;
+        y-resolution = <1536>;
     };
 };
 
