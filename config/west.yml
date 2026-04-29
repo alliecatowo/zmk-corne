@@ -22,6 +22,6 @@ manifest:
     # CI uses this URL+revision, not the submodule path.
     - name: zmk-driver-azoteq-iqs5xx
       remote: alliecatowo
-      revision: diagnostic/nvd-resolution-readonly
+      revision: feat/tier1.2-static-beta
   self:
     path: config
