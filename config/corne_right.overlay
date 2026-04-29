@@ -33,11 +33,11 @@
          * to register 0x0669 (XY_CONFIG_0) during iqs5xx_setup_device. */
         flip-x;
 
-        /* 1.5× resolution bump from chip's NVD 1024×1024 baseline.
-         * Diagnostic burst-read after these writes will tell us whether
-         * the chip accepted the values or clamped them. */
-        x-resolution = <1536>;
-        y-resolution = <1536>;
+        /* CHIP MAX — diagnostic confirmed TOTAL_RX=8, TOTAL_TX=9 →
+         * chip can do 1792×2048. Use atomic 4-byte write in driver to
+         * make both axes stick (separate writes drop the second). */
+        x-resolution = <1792>;
+        y-resolution = <2048>;
     };
 };
 
